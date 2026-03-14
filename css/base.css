@@ -1,0 +1,52 @@
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg0:#080b12;--bg1:#0d1120;--bg2:#131928;--bg3:#1a2338;--bg4:#222d45;
+  --bd:#1e2a40;--bd2:#2a3a58;--bd3:#354a6a;
+  --tx:#d0daf5;--tx2:#7a90c0;--tx3:#506890;--tx4:#2a3d5e;
+  --gold:#c5a059;--gold2:#e5c585;--gold3:#f0d898;
+  --blue:#4d84ff;--green:#2ecc71;--red:#e74c3c;--amber:#f5a623;--purple:#9b6dff;--cyan:#22d3ee;
+  --f:'Inter',system-ui,sans-serif;--fm:'JetBrains Mono','Courier New',monospace;
+  --r:8px;--r2:12px;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:var(--f);background:var(--bg0);color:var(--tx);display:flex;flex-direction:column;}
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px;}
+
+/* ── APP HEADER ── */
+#appHeader{
+  display:flex;align-items:center;gap:0;
+  background:var(--bg1);border-bottom:1px solid var(--bd);
+  flex-shrink:0;user-select:none;
+}
+.appLogo{
+  padding:0 24px;font-size:11px;letter-spacing:3px;font-weight:700;
+  color:var(--gold2);white-space:nowrap;border-right:1px solid var(--bd);
+  height:100%;display:flex;align-items:center;
+}
+.appLogo span{color:var(--tx3);}
+.moduleTabs{display:flex;flex:1;}
+.mTab{
+  padding:14px 28px;font-size:12px;font-weight:600;letter-spacing:.5px;
+  border:none;background:transparent;color:var(--tx3);cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;
+  display:flex;align-items:center;gap:8px;
+}
+.mTab:hover{color:var(--tx2);background:rgba(255,255,255,.03);}
+.mTab.active{color:var(--gold2);border-bottom-color:var(--gold);background:rgba(197,160,89,.05);}
+.mTab .badge{
+  background:var(--gold);color:#000;font-size:9px;font-weight:700;
+  padding:1px 6px;border-radius:20px;min-width:18px;text-align:center;display:none;
+}
+.mTab .badge.show{display:inline-block;}
+.appHeaderRight{
+  margin-left:auto;display:flex;align-items:center;gap:8px;
+  padding:0 16px;border-left:1px solid var(--bd);
+}
+
+/* ── MODULE PANELS ── */
+.module{display:none;flex:1;overflow:hidden;}
+.module.active{display:flex;}

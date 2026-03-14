@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sport Constructor Pro</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/planner.css">
+<link rel="stylesheet" href="css/render.css">
+<link rel="stylesheet" href="css/hangar-editor.css">
+<link rel="stylesheet" href="css/modals.css">
+</head>
+<body>
+
+<!-- APP HEADER -->
+<div id="appHeader">
+  <div class="appLogo"><svg width="140" height="28" viewBox="0 0 280 56" xmlns="http://www.w3.org/2000/svg"><circle cx="28" cy="28" r="24" fill="none" stroke="#2B5EA7" stroke-width="4"/><circle cx="28" cy="28" r="16" fill="none" stroke="#2B5EA7" stroke-width="3"/><text x="22" y="34" font-size="20" font-weight="bold" fill="#2B5EA7" font-family="Arial">В</text><text x="62" y="36" font-size="24" font-weight="700" fill="#2B5EA7" font-family="Arial,sans-serif" letter-spacing="1">СПОРТ</text><text x="158" y="36" font-size="24" font-weight="900" fill="#D42B2B" font-family="Arial,sans-serif" letter-spacing="1">ВСЕГДА</text></svg></div>
+  <div class="moduleTabs">
+    <button class="mTab active" onclick="switchModule('calc',this)">
+      <span>01</span> Калькулятор
+      <span class="badge" id="badgeCalc"></span>
+    </button>
+    <button class="mTab" onclick="switchModule('plan',this)">
+      <span>02</span> Планировщик
+      <span class="badge" id="badgePlan"></span>
+    </button>
+    <button class="mTab" onclick="switchModule('render',this)">
+      <span>03</span> Рендер / Промпты
+    </button>
+    <button class="mTab" onclick="switchModule('fin',this)">
+      <span>04</span> Финмодель
+    </button>
+  </div>
+  <div class="appHeaderRight">
+    <button class="helpBtn" onclick="openHelp()" title="Инструкция">?</button>
+    <button class="aiWizBtn" onclick="openAIWizard()"><svg class="aiWizIco" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7z" fill="url(#brGrad)"/><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z" fill="#9B6DFF"/><path d="M8.5 9.5h2v3h-2zM13.5 9.5h2v3h-2z" fill="#fff" opacity=".9" rx="1"/><path d="M10 8a1 1 0 100-2 1 1 0 000 2zM14 8a1 1 0 100-2 1 1 0 000 2z" fill="#0ff" opacity=".8"/><circle cx="10" cy="7" r=".5" fill="#fff"/><circle cx="14" cy="7" r=".5" fill="#fff"/><path d="M3 9h2M19 9h2M12 0v2" stroke="#9B6DFF" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><defs><linearGradient id="brGrad" x1="5" y1="2" x2="19" y2="17"><stop stop-color="#9B6DFF"/><stop offset="1" stop-color="#6D4AFF"/></linearGradient></defs></svg> НейроМозг</button>
+    <span id="headerTotal" style="font-size:11px;color:var(--gold2);font-family:var(--fm);font-weight:700;">0 ₽</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ MODULE 1: CALCULATOR ════════════════════════════════ -->
+<div class="module active" id="modCalc">
+  <div id="calcLeft">
+    <div id="calcTabs">
+      <button class="cTab active" onclick="switchCTab('racket',this)">Ракеточные</button>
+      <button class="cTab" onclick="switchCTab('team',this)">Командные</button>
+      <button class="cTab" onclick="switchCTab('athletics',this)">Атлетика</button>
+      <button class="cTab" onclick="switchCTab('fun',this)">Развлечения</button>
+      <button class="cTab" onclick="switchCTab('glamping',this)">Глэмпинг</button>
+      <button class="cTab" onclick="switchCTab('wellness',this)">Велнес/СПА</button>
+      <button class="cTab" onclick="switchCTab('infra',this)">Инфра/АБК</button>
+      <button class="cTab" onclick="switchCTab('prep',this)">Благоустройство</button>
+      <button class="cTab" onclick="switchCTab('building',this)">Здания</button>
+      <button class="cTab" onclick="switchCTab('settings',this)">⚙ Цены</button>
+    </div>
+    <div id="calcGrid">
+      <div class="cGrid show" id="cg-racket"></div>
+      <div class="cGrid" id="cg-team"></div>
+      <div class="cGrid" id="cg-athletics"></div>
+      <div class="cGrid" id="cg-fun"></div>
+      <div class="cGrid" id="cg-glamping"></div>
+      <div class="cGrid" id="cg-wellness"></div>
+      <div class="cGrid" id="cg-infra"></div>
+      <div class="cGrid" id="cg-prep"></div>
+      <div id="tabBuilding"></div>
+      <div id="tabSettings"></div>
+    </div>
+  </div>
+  <aside id="calcRight">
+    <div class="sumHead">
+      <div class="sumLabel">Оценка проекта</div>
+      <div class="sumTotal" id="sumTotal">0 <span>₽</span></div>
+      <div class="plotBar">
+        <div class="plotBarRow">
+          <span>Площадь под здания: <b id="sumArea">0</b> м²</span>
+          <span>Участок: <b id="sumPlotTot">5 000</b> м²</span>
+        </div>
+        <div class="plotTrack"><div class="plotFill" id="plotFill" style="width:0%"></div></div>
+        <div class="plotInputs">
+          <label>Участок</label>
+          <input type="number" id="plotW" value="100" min="1" oninput="recalc()"> м ×
+          <input type="number" id="plotL" value="50" min="1" oninput="recalc()"> м
+        </div>
+      </div>
+    </div>
+    <div class="sumList" id="sumList"><div class="sumEmpty">Выберите объекты</div></div>
+    <div class="kpFields">
+      <label>Клиент / Проект</label>
+      <input type="text" id="kpClient" placeholder="Название проекта или клиента">
+      <label>Менеджер</label>
+      <input type="text" id="kpManager" placeholder="ФИО менеджера">
+    </div>
+    <div class="projBtnRow">
+      <button class="projBtn" onclick="saveProject()">💾 Сохранить</button>
+      <button class="projBtn" onclick="document.getElementById('projLoadIn').click()">📂 Загрузить</button>
+      <input type="file" id="projLoadIn" accept=".json" style="display:none" onchange="loadProject(this)">
+      <button class="projBtn imp" onclick="document.getElementById('csvLoadIn').click()">📋 Импорт CSV</button>
+      <input type="file" id="csvLoadIn" accept=".csv,.xlsx,.txt" style="display:none" onchange="importCSV(this)">
+      <button class="projBtn" onclick="openImportTZ()">📝 Импорт ТЗ</button>
+    </div>
+    <div class="sumFoot">
+      <button class="btnGold" onclick="goToPlanner()">Перейти к планировщику →</button>
+      <button class="btnGold" style="background:var(--blue);border-color:var(--blue);color:#fff;" onclick="generatePDF()">📄 Скачать КП (PDF)</button>
+      <button class="btnGhost" onclick="resetCalc()">Сбросить всё</button>
+    </div>
+  </aside>
+</div>
+
+<!-- ════════════════════════════════ MODULE 2: PLANNER ════════════════════════════════ -->
+<div class="module" id="modPlan">
+  <div id="planBar">
+    <button class="pBtn" onclick="document.getElementById('fileIn').click()">📂 Карта</button>
+    <input type="file" id="fileIn" accept="image/*" style="display:none" onchange="loadMap(this)">
+    <div class="psep"></div>
+    <button class="pBtn gold" id="bRuler" onclick="startRuler()">📏 Линейка</button>
+    <button class="pBtn gold" onclick="openGpsModal()">🌐 GPS</button>
+    <button class="pBtn gold" onclick="openCadastreModal()">📐 Кадастр</button>
+    <span class="pLabel" id="scaleLbl" style="color:var(--tx4)">нет масштаба</span>
+    <div class="psep"></div>
+    <button class="pBtn on" id="bGrid" onclick="toggleGrid()">Сетка</button>
+    <label class="pLabel" style="display:flex;align-items:center;gap:4px;">
+      Шаг <input class="pInput" type="number" id="gridStep" value="10" min="1" max="500"> м
+    </label>
+    <div class="psep"></div>
+    <button class="pBtn" onclick="delSelected()">Удалить</button>
+    <button class="pBtn red" onclick="clearPlan()">Очистить</button>
+    <div class="psep"></div>
+    <button class="pBtn green" onclick="genPrompts()">Генерировать промпты →</button>
+  </div>
+  <div id="planBody">
+    <div id="planLib">
+      <div class="ph">ОБЪЕКТЫ</div>
+      <div id="libItems"></div>
+    </div>
+    <div id="planCanvas">
+      <canvas id="cv"></canvas>
+      <div id="crosshair"></div>
+      <div id="planHint"></div>
+    </div>
+    <div id="planProps">
+      <div class="ph">СВОЙСТВА</div>
+      <div id="propsBody"><div style="color:var(--tx4);font-size:10px;padding:8px 0;">Выберите объект</div></div>
+      <div id="aiPanel">
+        <div class="ph2">CLAUDE АНАЛИЗ</div>
+        <textarea id="aiOut" readonly placeholder="Анализ зонирования…"></textarea>
+        <div class="aiRow">
+          <button onclick="runAI()" style="width:100%">Анализ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="planBottom">
+    <div id="promptBar">
+      <span class="pl">ПРОМПТ</span>
+      <textarea id="promptOut" readonly placeholder="Нажмите «Генерировать промпты»…"></textarea>
+      <button class="pBtn green" onclick="copyPrompt()">Копировать</button>
+    </div>
+    <div id="infoBar">
+      <span>Курсор: <span class="iv" id="iPos">—</span></span>
+      <span>Объект: <span class="iv" id="iSel">—</span></span>
+      <span>Объектов: <span class="iv" id="iCnt">0</span></span>
+      <span style="color:var(--tx4)">Alt+drag=панорама | Колесо=зум | ←/→=поворот | Del=удалить | Esc=отмена</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ MODULE 3: RENDER ════════════════════════════════ -->
+<div class="module" id="modRender">
+  <div class="rSection" style="max-width:1100px;">
+    <h3><span>🎬</span> Вид сверху (img2img)</h3>
+    <textarea class="promptBox" id="pTop" placeholder="Появится после генерации в модуле 02…" rows="5"></textarea>
+    <div class="rRow">
+      <button class="pBtn green" onclick="genPrompts();switchModule('render',document.querySelectorAll('.mTab')[2])">Обновить</button>
+      <button class="pBtn" onclick="copyEl('pTop')">Копировать</button>
+      <select class="resSelect" id="resTop"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
+      <select class="resSelect" id="arTop"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option><option value="21:9">21:9</option></select>
+      <button class="btnGen" onclick="generateImage('pTop')">Сгенерировать</button>
+    </div>
+    <div class="genStatus" id="statusTop" style="display:none;"><div class="spinner"></div><span>Генерация…</span></div>
+    <div class="imgGallery" id="galleryTop"></div>
+  </div>
+  <div class="rSection" style="max-width:1100px;">
+    <h3><span>🏗️</span> Перспективный вид (45°)</h3>
+    <textarea class="promptBox" id="pNW" placeholder="Сгенерируется автоматически из объектов на плане…" rows="5"></textarea>
+    <div class="rRow">
+      <button class="pBtn green" onclick="genPrompts()">Обновить</button>
+      <button class="pBtn" onclick="copyEl('pNW')">Копировать</button>
+      <select class="resSelect" id="resNW"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
+      <select class="resSelect" id="arNW"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option></select>
+      <button class="btnGen" onclick="generateImage('pNW')">Сгенерировать</button>
+    </div>
+    <div class="genStatus" id="statusNW" style="display:none;"><div class="spinner"></div><span>Генерация…</span></div>
+    <div class="imgGallery" id="galleryNW"></div>
+  </div>
+  <div class="rSection" style="max-width:1100px;">
+    <h3><span>🔍</span> Аксонометрический разрез (Cutaway Axonometric)</h3>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:10px;">Вид сверху с полупрозрачными / срезанными крышами — видно наполнение каждого здания изнутри.</p>
+    <textarea class="promptBox" id="pSE" placeholder="Сгенерируется автоматически…" rows="5"></textarea>
+    <div class="rRow">
+      <button class="pBtn green" onclick="genPrompts()">Обновить</button>
+      <button class="pBtn" onclick="copyEl('pSE')">Копировать</button>
+      <select class="resSelect" id="resSE"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
+      <select class="resSelect" id="arSE"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option></select>
+      <button class="btnGen" onclick="generateImage('pSE')">Сгенерировать</button>
+    </div>
+    <div class="genStatus" id="statusSE" style="display:none;"><div class="spinner"></div><span>Генерация…</span></div>
+    <div class="imgGallery" id="gallerySE"></div>
+  </div>
+  <div class="rSection" style="max-width:1100px;">
+    <h3><span>🤖</span> Claude — развёрнутый анализ</h3>
+    <div class="apiBanner">
+      <div style="flex:1;">
+        <p style="margin-bottom:8px;">Анализ расстановки зданий, зонирования и потоков посетителей.</p>
+        <button class="pBtn" style="background:rgba(155,109,255,.2);border-color:var(--purple);color:var(--purple);" onclick="runRenderAI()">Запустить анализ</button>
+      </div>
+    </div>
+    <textarea class="promptBox" id="renderAIOut" readonly placeholder="Результат анализа появится здесь…" rows="8" style="margin-top:12px;"></textarea>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ MODULE 4: FINANCIAL MODEL ════════════════════════════════ -->
+<div class="module" id="modFin">
+  <div style="max-width:1100px;width:100%;">
+    <h2 style="font-size:16px;color:var(--gold2);margin-bottom:4px;">Финансовая модель проекта</h2>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:20px;">Автоматический расчёт на основе выбранного оборудования. Корректируйте параметры для точного прогноза.</p>
+
+    <div class="finGrid" id="finKPI"></div>
+
+    <!-- DETAILED SETTINGS BLOCKS -->
+    <div class="finRow" style="margin-bottom:20px;">
+
+      <!-- REVENUE SETTINGS -->
+      <div class="finPanel">
+        <h4 class="finToggle" onclick="toggleFinBlock('finRevBlock')">Доходы (Revenue) <span class="finArrow">▼</span></h4>
+        <div id="finRevBlock">
+          <table class="finTbl">
+            <tr><td>Часов работы / день</td><td class="r"><input class="finInput" id="finHours" type="number" value="14" min="1" max="24" onchange="calcFin()"></td></tr>
+            <tr><td>Средний чек / час аренды</td><td class="r"><input class="finInput" id="finTicket" type="number" value="3000" min="100" step="100" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Загрузка (средняя)</td><td class="r"><input class="finInput" id="finLoad" type="number" value="65" min="10" max="100" onchange="calcFin()"> %</td></tr>
+            <tr><td>Сезон (месяцев в году)</td><td class="r"><input class="finInput" id="finSeason" type="number" value="12" min="1" max="12" onchange="calcFin()"></td></tr>
+            <tr><td>Кол-во площадок (доходных)</td><td class="r" id="finCourts">—</td></tr>
+          </table>
+          <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Загрузка по месяцам (%)</h4>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:6px;" id="finMonthLoad"></div>
+          <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Доп. доходы / мес</h4>
+          <table class="finTbl">
+            <tr><td>Кафе / бар</td><td class="r"><input class="finInput" id="finRevCafe" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Прокат оборудования</td><td class="r"><input class="finInput" id="finRevRent" type="number" value="0" min="0" step="5000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Мероприятия / турниры</td><td class="r"><input class="finInput" id="finRevEvents" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Глэмпинг / проживание</td><td class="r"><input class="finInput" id="finRevGlamp" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>СПА / велнес</td><td class="r"><input class="finInput" id="finRevSpa" type="number" value="0" min="0" step="5000" onchange="calcFin()"> ₽</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- CAPEX SETTINGS -->
+      <div class="finPanel">
+        <h4 class="finToggle" onclick="toggleFinBlock('finCapBlock')">CAPEX (Инвестиции) <span class="finArrow">▼</span></h4>
+        <div id="finCapBlock">
+          <div id="finCapList"></div>
+          <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Дополнительные затраты</h4>
+          <table class="finTbl">
+            <tr><td>Проектирование</td><td class="r"><input class="finInput" id="finCapDesign" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Подключение коммуникаций</td><td class="r"><input class="finInput" id="finCapComm" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Благоустройство территории</td><td class="r"><input class="finInput" id="finCapLand" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Мебель и оснащение</td><td class="r"><input class="finInput" id="finCapFurn" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+            <tr><td>Непредвиденные (резерв)</td><td class="r"><input class="finInput" id="finCapReserve" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="finRow" style="margin-bottom:20px;">
+
+      <!-- STAFF SETTINGS -->
+      <div class="finPanel">
+        <h4 class="finToggle" onclick="toggleFinBlock('finStaffBlock')">Персонал (штатное расписание) <span class="finArrow">▼</span></h4>
+        <div id="finStaffBlock">
+          <table class="finTbl" id="finStaffTbl">
+            <thead><tr><th>Должность</th><th>Кол-во</th><th>Зарплата</th><th>Итого</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <button style="margin-top:8px;padding:4px 12px;font-size:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;color:var(--tx2);cursor:pointer;" onclick="addStaffRow()">+ Добавить должность</button>
+          <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finStaffTotal"></div>
+        </div>
+      </div>
+
+      <!-- UTILITIES SETTINGS -->
+      <div class="finPanel">
+        <h4 class="finToggle" onclick="toggleFinBlock('finUtilBlock')">Коммунальные и аренда <span class="finArrow">▼</span></h4>
+        <div id="finUtilBlock">
+          <table class="finTbl">
+            <tr><td>Аренда земли / участка</td><td class="r"><input class="finInput" id="finRent" type="number" value="200000" min="0" step="10000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Электроэнергия</td><td class="r"><input class="finInput" id="finElec" type="number" value="80000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Отопление</td><td class="r"><input class="finInput" id="finHeat" type="number" value="40000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Водоснабжение</td><td class="r"><input class="finInput" id="finWater" type="number" value="15000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Вывоз мусора / уборка</td><td class="r"><input class="finInput" id="finWaste" type="number" value="15000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Интернет / связь</td><td class="r"><input class="finInput" id="finInternet" type="number" value="5000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Охрана</td><td class="r"><input class="finInput" id="finSecurity" type="number" value="30000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Страхование</td><td class="r"><input class="finInput" id="finInsurance" type="number" value="15000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+          </table>
+          <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finUtilTotal"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="finRow" style="margin-bottom:20px;">
+      <!-- MARKETING & OTHER OPEX -->
+      <div class="finPanel">
+        <h4 class="finToggle" onclick="toggleFinBlock('finMarkBlock')">Маркетинг и прочие расходы <span class="finArrow">▼</span></h4>
+        <div id="finMarkBlock">
+          <table class="finTbl">
+            <tr><td>Онлайн-реклама (Яндекс, VK)</td><td class="r"><input class="finInput" id="finMarkOnline" type="number" value="40000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>SMM / контент</td><td class="r"><input class="finInput" id="finMarkSMM" type="number" value="20000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Наружная реклама</td><td class="r"><input class="finInput" id="finMarkOutdoor" type="number" value="10000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>CRM / софт / подписки</td><td class="r"><input class="finInput" id="finMarkSoft" type="number" value="10000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Обслуживание оборудования</td><td class="r"><input class="finInput" id="finMaint" type="number" value="30000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Расходные материалы</td><td class="r"><input class="finInput" id="finConsumables" type="number" value="15000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            <tr><td>Бухгалтерия / юрист</td><td class="r"><input class="finInput" id="finAccounting" type="number" value="25000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+          </table>
+          <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finMarkTotal"></div>
+        </div>
+      </div>
+
+      <!-- P&L -->
+      <div class="finPanel">
+        <h4>P&L — Годовой прогноз</h4>
+        <table class="finTbl" id="finPL"></table>
+      </div>
+    </div>
+
+    <div class="finRow">
+      <div class="finPanel">
+        <h4>Структура расходов</h4>
+        <div class="finBar" id="finExpBar"></div>
+        <div id="finExpLegend"></div>
+      </div>
+      <div class="finPanel">
+        <h4>Окупаемость (накопительный Cash Flow)</h4>
+        <div class="finChart" id="finPayback"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GPS -->
+<div class="mOverlay" id="gpsModal">
+  <div class="mBox">
+    <h3>МАСШТАБ ПО GPS</h3>
+    <p>Введите координаты двух точек — расстояние рассчитается автоматически. Затем нажмите «Начать» и кликните эти точки на карте.</p>
+    <div class="mGrid2">
+      <div class="mField"><label>Точка 1 · Широта</label><input type="number" id="g1lat" step="0.000001" placeholder="55.792228"></div>
+      <div class="mField"><label>Точка 1 · Долгота</label><input type="number" id="g1lng" step="0.000001" placeholder="37.757331"></div>
+      <div class="mField"><label>Точка 2 · Широта</label><input type="number" id="g2lat" step="0.000001" placeholder="55.793000"></div>
+      <div class="mField"><label>Точка 2 · Долгота</label><input type="number" id="g2lng" step="0.000001" placeholder="37.759000"></div>
+    </div>
+    <div class="mInfo" id="gpsDist"></div>
+    <div class="mFoot">
+      <button class="mCancel" onclick="closeModal('gpsModal')">Отмена</button>
+      <button class="mOk" onclick="startGps()">Начать</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Cadastral / GPS boundary import -->
+<div class="mOverlay" id="cadastreModal">
+  <div class="mBox" style="max-width:560px;">
+    <h3>ИМПОРТ ГРАНИЦ УЧАСТКА</h3>
+    <p style="font-size:10px;color:var(--tx2);margin-bottom:10px;">Вставьте координаты вершин участка. Поддерживаются форматы: кадастровые координаты (X Y), GPS (lat,lng), GeoJSON, или координаты с Росреестра.</p>
+    <div class="mField">
+      <label>Формат</label>
+      <select id="cadFormat" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:11px;">
+        <option value="auto">Авто-определение</option>
+        <option value="xy">X Y (метры, кадастр)</option>
+        <option value="gps">Широта, Долгота (GPS WGS-84)</option>
+        <option value="geojson">GeoJSON</option>
+      </select>
+    </div>
+    <div class="mField">
+      <label>Координаты вершин</label>
+      <textarea id="cadCoords" rows="8" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:10px;font-family:monospace;resize:vertical;" placeholder="Пример (X Y):
+1234.56 789.01
+1250.00 789.01
+1250.00 830.00
+1234.56 830.00
+
+Или GPS:
+55.792228, 37.757331
+55.793000, 37.757331
+55.793000, 37.759000
+55.792228, 37.759000"></textarea>
+    </div>
+    <div class="mField" id="cadPreview" style="display:none;">
+      <canvas id="cadPreviewCv" width="300" height="200" style="width:100%;border:1px solid var(--bd);border-radius:6px;background:var(--bg);"></canvas>
+      <div id="cadInfo" style="font-size:10px;color:var(--tx2);margin-top:4px;"></div>
+    </div>
+    <div class="mFoot">
+      <button class="mCancel" onclick="closeModal('cadastreModal')">Отмена</button>
+      <button class="mOk" onclick="previewCadastre()" style="background:var(--amber);border-color:var(--amber);color:#000;">Предпросмотр</button>
+      <button class="mOk" onclick="applyCadastre()">Применить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Custom object -->
+<div class="mOverlay" id="custModal">
+  <div class="mBox">
+    <h3>НОВЫЙ ОБЪЕКТ</h3>
+    <div class="mField"><label>Название</label><input type="text" id="custName" placeholder="Название здания"></div>
+    <div class="mGrid2">
+      <div class="mField"><label>Ширина (м)</label><input type="number" id="custW" value="20" min="1"></div>
+      <div class="mField"><label>Глубина (м)</label><input type="number" id="custH" value="15" min="1"></div>
+      <div class="mField"><label>Высота (м)</label><input type="number" id="custHt" value="6" min="0"></div>
+      <div class="mField"><label>Зона</label>
+        <select id="custZone">
+          <option value="sport">Спорт</option><option value="event">Ивент</option>
+          <option value="glamp">Глемпинг</option><option value="well">Wellness</option>
+          <option value="gastro">Гастрономия</option><option value="infra">Инфраструктура</option>
+          <option value="other">Прочее</option>
+        </select>
+      </div>
+    </div>
+    <div class="mField"><label>Примечание</label><input type="text" id="custNote" placeholder="Материалы, особенности…"></div>
+    <div class="mFoot">
+      <button class="mCancel" onclick="closeModal('custModal')">Отмена</button>
+      <button class="mOk" onclick="addCustomItem()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Ruler distance -->
+<div class="mOverlay" id="rulerModal">
+  <div class="mBox">
+    <h3>ЛИНЕЙКА — РЕАЛЬНОЕ РАССТОЯНИЕ</h3>
+    <p>Вы отметили два конца линейки на карте. Введите реальное расстояние между ними в метрах.</p>
+    <div class="mField"><label>Расстояние (м)</label><input type="number" id="rulerDist" value="100" min="0.1" step="0.1"></div>
+    <div class="mFoot">
+      <button class="mCancel" onclick="cancelRuler()">Отмена</button>
+      <button class="mOk" onclick="confirmRuler()">Задать масштаб</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Hangar Interior Editor -->
+<div id="hangarEditorModal">
+  <div class="heHeader">
+    <h3>КОНСТРУКТОР АНГАРА</h3>
+    <div class="heDims">
+      <label>Ширина:</label><input type="number" id="heW" value="60" min="10" max="200" onchange="heUpdateDimensions()"> м
+      <label style="margin-left:6px;">Глубина:</label><input type="number" id="heH" value="40" min="10" max="200" onchange="heUpdateDimensions()"> м
+      <span style="width:1px;height:16px;background:var(--bd);margin:0 8px;"></span>
+      <label>Отступ стен:</label><input type="number" id="heWallOff" value="3" min="0" max="20" step="0.5" onchange="heUpdateSpacing()"> м
+      <label style="margin-left:6px;">Зазор:</label><input type="number" id="heObjGap" value="2" min="0" max="10" step="0.5" onchange="heUpdateSpacing()"> м
+    </div>
+    <button class="heClose" onclick="closeHangarEditor()">Закрыть ✕</button>
+  </div>
+  <div class="heBody">
+    <div class="heSidebar">
+      <div class="heSideHead" style="display:flex;justify-content:space-between;align-items:center;">ОБЪЕКТЫ <button class="heAutoBtn" onclick="heAutoPlace()" title="Автоматически разместить выбранные объекты">⚡ Авто</button></div>
+      <div id="hePalette"></div>
+    </div>
+    <div class="heCanvasWrap">
+      <canvas id="heCv"></canvas>
+    </div>
+    <div class="heRight">
+      <div class="heRightHead">СВОЙСТВА</div>
+      <div id="heProps"><div style="color:var(--tx4);font-size:10px;">Выберите объект</div></div>
+      <div style="margin-top:auto;border-top:1px solid var(--bd);padding-top:8px;">
+        <div class="heRightHead">ПОДСКАЗКА</div>
+        <div style="font-size:9px;color:var(--tx3);line-height:1.5;">
+          Клик по объекту слева → клик на плане для размещения.<br>
+          Shift+клик — множественное.<br>
+          Перетаскивание — перемещение.<br>
+          Delete — удалить.<br>
+          Колесо — масштаб.<br>
+          Alt+drag — панорама.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div id="helpModal" onclick="if(event.target===this)closeHelp()">
+  <div class="helpBox">
+    <div class="helpHead">
+      <h3>Инструкция пользователя</h3>
+      <button class="helpClose" onclick="closeHelp()">✕</button>
+    </div>
+    <div class="helpTabs">
+      <button class="helpTab active" onclick="switchHelpTab('start',this)">Быстрый старт</button>
+      <button class="helpTab" onclick="switchHelpTab('calc',this)">Калькулятор</button>
+      <button class="helpTab" onclick="switchHelpTab('plan',this)">Планировщик</button>
+      <button class="helpTab" onclick="switchHelpTab('neuro',this)">НейроМозг</button>
+      <button class="helpTab" onclick="switchHelpTab('tips',this)">Советы</button>
+    </div>
+    <div class="helpBody">
+      <div class="helpSection active" id="help-start">
+        <h4>Добро пожаловать в Sport Constructor Pro</h4>
+        <p>Платформа для менеджеров по продаже спортивных комплексов. Собирайте комплектацию, планируйте размещение и формируйте коммерческие предложения.</p>
+        <h4>Как работать — 4 простых шага</h4>
+        <div class="helpStep"><div class="helpNum">1</div><div class="helpStepText">Откройте <b>Калькулятор</b> — выберите категорию (ракеточные, командные, атлетика и т.д.) и добавьте нужные объекты кнопками <b>+</b> / <b>−</b></div></div>
+        <div class="helpStep"><div class="helpNum">2</div><div class="helpStepText">Справа видите <b>Оценку проекта</b> — итоговая стоимость обновляется в реальном времени</div></div>
+        <div class="helpStep"><div class="helpNum">3</div><div class="helpStepText">Перейдите в <b>Планировщик</b> — создайте ангар (укажите размеры) и расставьте выбранные объекты на плане. Используйте <b>Авто-расстановку</b> для быстрого размещения</div></div>
+        <div class="helpStep"><div class="helpNum">4</div><div class="helpStepText">Используйте <b>НейроМозг</b> — опишите голосом или текстом что хотите построить, и AI автоматически соберёт комплектацию</div></div>
+        <h4>Навигация</h4>
+        <ul>
+          <li><b>01 Калькулятор</b> — подбор оборудования и расчёт стоимости</li>
+          <li><b>02 Планировщик</b> — визуальное размещение в ангарах</li>
+          <li><b>03 Рендер / Промпты</b> — генерация визуализаций</li>
+          <li><b>НейроМозг</b> — AI-помощник (фиолетовая кнопка)</li>
+          <li><b>?</b> — эта инструкция</li>
+        </ul>
+      </div>
+      <div class="helpSection" id="help-calc">
+        <h4>Калькулятор оборудования</h4>
+        <p>Здесь собирается полная комплектация спортивного объекта с автоматическим расчётом стоимости.</p>
+        <h4>Категории</h4>
+        <ul>
+          <li><b>Ракеточные</b> — падел-корты, теннисные корты, бадминтон, пиклбол, сквош</li>
+          <li><b>Командные</b> — футбольные, баскетбольные, волейбольные площадки</li>
+          <li><b>Атлетика</b> — беговые дорожки, скалодромы, воркаут-зоны</li>
+          <li><b>Развлечения</b> — батутные парки, верёвочные парки, боулинг</li>
+          <li><b>Глэмпинг</b> — домики, сафари-тенты, купольные шатры</li>
+          <li><b>Велнес/СПА</b> — бани, хаммамы, соляные комнаты, бассейны</li>
+          <li><b>Инфра</b> — раздевалки, санузлы, рецепция, кафе</li>
+        </ul>
+        <h4>Как добавить объект</h4>
+        <ul>
+          <li>Найдите нужный объект в категории</li>
+          <li>У каждого объекта есть варианты (например, Classic, Pro, Panoramic)</li>
+          <li>Нажмите <b>+</b> чтобы добавить, <b>−</b> чтобы убрать</li>
+          <li>Цена за единицу и итог обновляются автоматически</li>
+          <li>Нажмите на миниатюру <b>📷 Фото</b> чтобы сгенерировать визуализацию</li>
+        </ul>
+        <h4>Панель справа</h4>
+        <ul>
+          <li><b>Оценка проекта</b> — общая стоимость всех объектов</li>
+          <li><b>Площадь под здания</b> — сумма площадей всех добавленных объектов</li>
+          <li><b>Участок</b> — задайте размеры территории</li>
+          <li><b>Здания / Ангары</b> — список созданных ангаров</li>
+          <li><b>Перейти к планировщику</b> — переход к размещению</li>
+          <li><b>Сбросить всё</b> — очистить все выбранные объекты</li>
+        </ul>
+      </div>
+      <div class="helpSection" id="help-plan">
+        <h4>Планировщик ангаров</h4>
+        <p>Визуальный редактор для размещения выбранного оборудования в ангарах.</p>
+        <h4>Создание ангара</h4>
+        <ul>
+          <li>Нажмите <b>+ Добавить ангар</b> в правой панели калькулятора</li>
+          <li>Укажите название, ширину и длину в метрах</li>
+          <li>Ангар появится в списке — нажмите на него для редактирования</li>
+        </ul>
+        <h4>Размещение объектов</h4>
+        <ul>
+          <li>Слева — <b>палитра</b> с объектами из калькулятора</li>
+          <li>Нажмите на объект в палитре, затем кликните на план для размещения</li>
+          <li>Перетаскивайте объекты мышью для перемещения</li>
+          <li>Счётчик <b>«3 из 4 расставлено»</b> показывает прогресс</li>
+        </ul>
+        <h4>Авто-расстановка</h4>
+        <ul>
+          <li>Нажмите кнопку <b>Авто</b> — алгоритм оптимально расставит все объекты</li>
+          <li>Учитывает размеры, зазоры между объектами и отступы от стен</li>
+          <li>Если что-то не влезает — предложит увеличить ангар</li>
+        </ul>
+        <h4>Управление на плане</h4>
+        <ul>
+          <li>Колесо мыши — масштабирование</li>
+          <li>Перетаскивание объекта — перемещение</li>
+          <li>Правый клик — удаление объекта с плана</li>
+        </ul>
+      </div>
+      <div class="helpSection" id="help-neuro">
+        <h4>НейроМозг — AI-помощник</h4>
+        <p>Интеллектуальный конструктор, который понимает ваш запрос и автоматически собирает комплектацию.</p>
+        <h4>Как использовать</h4>
+        <div class="helpStep"><div class="helpNum">1</div><div class="helpStepText">Нажмите фиолетовую кнопку <b>НейроМозг</b> в верхней панели</div></div>
+        <div class="helpStep"><div class="helpNum">2</div><div class="helpStepText">Опишите что хотите построить — <b>текстом</b> в поле ввода или <b>голосом</b> (кнопка микрофона слева)</div></div>
+        <div class="helpStep"><div class="helpNum">3</div><div class="helpStepText">НейроМозг подберёт оптимальную комплектацию и автоматически добавит объекты в калькулятор</div></div>
+        <h4>Примеры запросов</h4>
+        <ul>
+          <li>«Хочу 4 падел-корта и зону отдыха с баней»</li>
+          <li>«Спортивный комплекс для города 50 тысяч человек»</li>
+          <li>«Глэмпинг-парк на 15 домиков с СПА и рестораном»</li>
+          <li>«Мультиспортивный центр: футбол, баскетбол, теннис, раздевалки»</li>
+        </ul>
+        <h4>Голосовой ввод</h4>
+        <ul>
+          <li>Нажмите кнопку <b>микрофона</b> — она станет красной (запись идёт)</li>
+          <li>Говорите по-русски — текст появится в поле ввода в реальном времени</li>
+          <li>Нажмите микрофон ещё раз чтобы остановить запись</li>
+          <li>Отредактируйте текст при необходимости и нажмите <b>Отправить</b></li>
+          <li>Работает в браузере Chrome (требуется микрофон)</li>
+        </ul>
+      </div>
+      <div class="helpSection" id="help-tips">
+        <h4>Полезные советы</h4>
+        <ul>
+          <li><b>Начните с НейроМозга</b> — опишите проект целиком, а потом скорректируйте детали вручную в калькуляторе</li>
+          <li><b>Не забывайте инфраструктуру</b> — раздевалки, санузлы и рецепция нужны почти всегда. НейроМозг добавит их автоматически</li>
+          <li><b>Сравнивайте варианты</b> — у каждого объекта есть несколько вариантов разного уровня и цены</li>
+          <li><b>Генерируйте фото</b> — нажмите на 📷 у варианта чтобы увидеть как он выглядит</li>
+          <li><b>Проверяйте площадь</b> — следите чтобы выбранные объекты помещались в ангар</li>
+          <li><b>Авто-расстановка</b> — экономит время при планировке, но вы всегда можете скорректировать вручную</li>
+        </ul>
+        <h4>Горячие клавиши</h4>
+        <ul>
+          <li><span class="helpKey">Enter</span> — отправить сообщение в НейроМозге</li>
+          <li><span class="helpKey">Esc</span> — закрыть модальное окно</li>
+          <li><span class="helpKey">Scroll</span> — масштаб плана в планировщике</li>
+        </ul>
+        <h4>Требования</h4>
+        <ul>
+          <li>Браузер: Chrome (для голосового ввода и генерации фото)</li>
+          <li>Интернет-соединение (для AI-помощника и визуализаций)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI WIZARD MODAL -->
+<div id="aiWizModal">
+  <div class="aiWizBox">
+    <div class="aiWizHead">
+      <h3><svg class="aiWizIco" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7z" fill="url(#brGrad2)"/><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z" fill="#9B6DFF"/><path d="M8.5 9.5h2v3h-2zM13.5 9.5h2v3h-2z" fill="#fff" opacity=".9" rx="1"/><path d="M10 8a1 1 0 100-2 1 1 0 000 2zM14 8a1 1 0 100-2 1 1 0 000 2z" fill="#0ff" opacity=".8"/><path d="M3 9h2M19 9h2M12 0v2" stroke="#9B6DFF" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><defs><linearGradient id="brGrad2" x1="5" y1="2" x2="19" y2="17"><stop stop-color="#9B6DFF"/><stop offset="1" stop-color="#6D4AFF"/></linearGradient></defs></svg> НейроМозг</h3>
+      <button class="aiWizClose" onclick="closeAIWizard()">✕</button>
+    </div>
+    <div class="aiWizChat" id="aiWizChat"></div>
+    <div class="aiWizInput">
+      <textarea id="aiWizInput" rows="3" placeholder="Опишите что хотите построить..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage();}"></textarea>
+      <div class="aiWizBtns">
+        <button class="aiVoiceBtn" id="aiVoiceBtn" onclick="toggleVoice()" title="Голосовой ввод"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v1a7 7 0 01-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+        <button id="aiWizSend" onclick="sendAIMessage()">Отправить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JS modules (load order matters) -->
+<script>const _v='?v=2';</script>
+<script src="js/keys.js?v=2"></script>
+<script src="js/config.js?v=2"></script>
+<script src="js/catalog.js?v=2"></script>
+<script src="js/utils.js?v=2"></script>
+<script src="js/app.js?v=2"></script>
+<script src="js/calculator.js?v=2"></script>
+<script src="js/sport-renderers.js?v=2"></script>
+<script src="js/planner.js?v=2"></script>
+<script src="js/hangar-editor.js?v=2"></script>
+<script src="js/render.js?v=2"></script>
+<script src="js/financial.js?v=2"></script>
+<script src="js/pdf.js?v=2"></script>
+<script src="js/ai-wizard.js?v=2"></script>
+<script src="js/help.js?v=2"></script>
+<script src="js/project.js?v=2"></script>
+
+</body>
+</html>
