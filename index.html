@@ -197,9 +197,11 @@
       <select class="resSelect" id="resTop"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
       <select class="resSelect" id="arTop"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option><option value="21:9">21:9</option></select>
       <button class="btnGen" onclick="generateImage('pTop')">Сгенерировать</button>
+      <button class="btnGen" style="background:rgba(197,160,89,.2);border-color:#c5a059;color:#c5a059;" onclick="generateImage('pTop');setTimeout(()=>generateImage('pTop'),2000)">×2 варианта</button>
     </div>
     <div class="genStatus" id="statusTop" style="display:none;"><div class="spinner"></div><span>Генерация…</span></div>
-    <div class="imgGallery" id="galleryTop"></div>
+    <div class="imgGallery" id="galleryTop" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;"></div>
+    <div style="font-size:9px;color:var(--tx4);margin-top:4px;">💡 Кликните на изображение, чтобы выбрать его для PDF-отчёта</div>
   </div>
   <div class="rSection" style="max-width:1100px;">
     <h3><span>🏗️</span> Перспективный вид (45°)</h3>
@@ -210,9 +212,11 @@
       <select class="resSelect" id="resNW"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
       <select class="resSelect" id="arNW"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option></select>
       <button class="btnGen" onclick="generateImage('pNW')">Сгенерировать</button>
+      <button class="btnGen" style="background:rgba(197,160,89,.2);border-color:#c5a059;color:#c5a059;" onclick="generateImage('pNW');setTimeout(()=>generateImage('pNW'),2000)">×2 варианта</button>
     </div>
     <div class="genStatus" id="statusNW" style="display:none;"><div class="spinner"></div><span>Генерация…</span></div>
-    <div class="imgGallery" id="galleryNW"></div>
+    <div class="imgGallery" id="galleryNW" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;"></div>
+    <div style="font-size:9px;color:var(--tx4);margin-top:4px;">💡 Кликните на изображение, чтобы выбрать его для PDF-отчёта</div>
   </div>
   <div class="rSection" style="max-width:1100px;">
     <h3><span>🔍</span> Аксонометрический разрез (Cutaway Axonometric)</h3>
@@ -224,9 +228,11 @@
       <select class="resSelect" id="resSE"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
       <select class="resSelect" id="arSE"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option></select>
       <button class="btnGen" onclick="generateImage('pSE')">Сгенерировать</button>
+      <button class="btnGen" style="background:rgba(197,160,89,.2);border-color:#c5a059;color:#c5a059;" onclick="generateImage('pSE');setTimeout(()=>generateImage('pSE'),2000)">×2 варианта</button>
     </div>
     <div class="genStatus" id="statusSE" style="display:none;"><div class="spinner"></div><span>Генерация…</span></div>
-    <div class="imgGallery" id="gallerySE"></div>
+    <div class="imgGallery" id="gallerySE" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;"></div>
+    <div style="font-size:9px;color:var(--tx4);margin-top:4px;">💡 Кликните на изображение, чтобы выбрать его для PDF-отчёта</div>
   </div>
   <div class="rSection" style="max-width:1100px;">
     <h3><span>🤖</span> Claude — развёрнутый анализ</h3>

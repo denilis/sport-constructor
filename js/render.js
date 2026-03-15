@@ -141,6 +141,8 @@ const PROMPT_MAP = {pTop:'Top', pNW:'NW', pSE:'SE'};
 async function generateImage(promptId){
   const promptEl = document.getElementById(promptId);
   if(!promptEl || !promptEl.value.trim()){alert('Сначала сгенерируйте промпт (обновите данные)');return;}
+  if(!KIE_API_KEY){alert('API-ключ NanoBanana (kie.ai) не задан.\nДобавьте KIE_API_KEY в js/keys.js');return;}
+
   const suffix = PROMPT_MAP[promptId];
   const statusEl = document.getElementById('status'+suffix);
   const galleryEl = document.getElementById('gallery'+suffix);
@@ -151,7 +153,7 @@ async function generateImage(promptId){
 
   // Show status
   statusEl.style.display='flex';
-  statusEl.innerHTML='<div class="spinner"></div><span>Отправка запроса…</span>';
+  statusEl.innerHTML='<div class="spinner"></div><span>Отправка запроса на генерацию…</span>';
 
   try {
     // 1. Create task
@@ -169,18 +171,28 @@ async function generateImage(promptId){
         }
       })
     });
+
+    if(!createRes.ok){
+      const errText = await createRes.text();
+      statusEl.innerHTML=`<span style="color:var(--red)">API ошибка ${createRes.status}: ${errText.substring(0,200)}</span>`;
+      return;
+    }
+
     const createData = await createRes.json();
+    console.log('KIE createTask response:', JSON.stringify(createData));
+
     if(createData.code !== 200 && !createData.data?.taskId){
-      statusEl.innerHTML=`<span style="color:var(--red)">Ошибка: ${createData.msg||'неизвестная ошибка'}</span>`;
+      statusEl.innerHTML=`<span style="color:var(--red)">Ошибка: ${createData.msg||JSON.stringify(createData)}</span>`;
       return;
     }
     const taskId = createData.data?.taskId || createData.data;
-    statusEl.innerHTML='<div class="spinner"></div><span>Генерация изображения… (taskId: '+taskId+')</span>';
+    statusEl.innerHTML='<div class="spinner"></div><span>Генерация… taskId: '+taskId+'</span>';
 
-    // 2. Poll for result
-    const imageUrl = await pollTaskResult(taskId, statusEl);
+    // 2. Poll for result (every 5 sec, max 40 attempts = 200 sec)
+    const imageUrl = await pollTaskResult(taskId, statusEl, 40);
     if(!imageUrl){
-      statusEl.innerHTML='<span style="color:var(--red)">Не удалось получить изображение</span>';
+      if(!statusEl.innerHTML.includes('не удалась'))
+        statusEl.innerHTML='<span style="color:var(--red)">Таймаут генерации (200 сек). Попробуйте снова.</span>';
       return;
     }
 
@@ -188,18 +200,26 @@ async function generateImage(promptId){
     statusEl.style.display='none';
     addToGallery(promptId, imageUrl, resolution, aspect);
   } catch(err){
+    console.error('generateImage error:', err);
     statusEl.innerHTML=`<span style="color:var(--red)">Сетевая ошибка: ${err.message}</span>`;
   }
 }
 
-async function pollTaskResult(taskId, statusEl, maxAttempts=60){
+async function pollTaskResult(taskId, statusEl, maxAttempts=40){
   for(let i=0; i<maxAttempts; i++){
-    await new Promise(r=>setTimeout(r, 3000)); // 3 sec interval
+    await new Promise(r=>setTimeout(r, 5000)); // 5 sec interval
     try {
       const res = await fetch('https://api.kie.ai/api/v1/jobs/recordInfo?taskId='+taskId, {
         headers:{'Authorization':'Bearer '+KIE_API_KEY}
       });
+      if(!res.ok){
+        console.warn('KIE poll HTTP '+res.status);
+        statusEl.innerHTML=`<div class="spinner"></div><span>Ожидание… (попытка ${i+1}/${maxAttempts})</span>`;
+        continue;
+      }
       const data = await res.json();
+      console.log('KIE poll #'+(i+1)+':', JSON.stringify(data).substring(0,500));
+
       if(data.code===200 && data.data){
         const d = data.data;
         // Check for completion
@@ -213,17 +233,23 @@ async function pollTaskResult(taskId, statusEl, maxAttempts=60){
             if(imgUrl) return imgUrl;
           }
           if(d.response && typeof d.response === 'string' && d.response.includes('http')) return d.response;
+          // Completed but no URL found
+          console.warn('KIE completed but no image URL in response:', JSON.stringify(d.response));
+          statusEl.innerHTML=`<span style="color:var(--red)">Генерация завершена, но изображение не найдено в ответе</span>`;
+          return null;
         }
         // Check for failure
         if(d.successFlag===0 || d.status==='failed' || d.status==='error'){
-          statusEl.innerHTML=`<span style="color:var(--red)">Генерация не удалась: ${d.errorMessage||'неизвестная ошибка'}</span>`;
+          statusEl.innerHTML=`<span style="color:var(--red)">Генерация не удалась: ${d.errorMessage||d.failReason||'неизвестная ошибка'}</span>`;
           return null;
         }
         // Still processing
         const progress = d.progress ? ` (${d.progress}%)` : '';
         statusEl.innerHTML=`<div class="spinner"></div><span>Генерация${progress}… (попытка ${i+1}/${maxAttempts})</span>`;
       }
-    } catch(e){ /* retry */ }
+    } catch(e){
+      console.warn('KIE poll error:', e.message);
+    }
   }
   return null;
 }
