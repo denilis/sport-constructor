@@ -349,6 +349,11 @@ function drawHangarInterior(){
   ctx.save(); ctx.translate(hx-6, hy+hh/2); ctx.rotate(-Math.PI/2);
   ctx.fillText(`${h.h}м`, 0, 0); ctx.restore();
 
+  // Fix legacy angles stored in degrees (>2π means it was degrees, not radians)
+  (h.layout||[]).forEach(li=>{
+    if(li.angle && Math.abs(li.angle) > 2*Math.PI) li.angle = li.angle * Math.PI / 180;
+  });
+
   // Draw placed items
   (h.layout||[]).forEach((li,idx)=>{
     const ix=hx+li.x*ppm, iy=hy+li.y*ppm, iw=li.w*ppm, ih=li.h*ppm;
@@ -363,7 +368,7 @@ function drawHangarInterior(){
     if(drawFn) drawFn(ctx, ix, iy, iw, ih);
     else SPORT_DRAW.default(ctx, ix, iy, iw, ih, CATALOG.find(c=>c.id===li.itemId)?.name||li.itemId);
 
-    // Selection highlight
+    // Selection highlight + rotation handles
     if(idx===HE.selected){
       ctx.strokeStyle='#c5a059'; ctx.lineWidth=2; ctx.setLineDash([4,3]);
       ctx.strokeRect(ix-2,iy-2,iw+4,ih+4);
@@ -371,6 +376,48 @@ function drawHangarInterior(){
     }
     ctx.restore();
   });
+
+  // Draw rotation & delete controls for selected object (AFTER all objects, on top)
+  if(HE.selected!==null && h.layout[HE.selected]){
+    const li=h.layout[HE.selected];
+    const ix=hx+li.x*ppm, iy=hy+li.y*ppm, iw=li.w*ppm, ih=li.h*ppm;
+    const cx=ix+iw/2, topY=iy-30;
+    const btnR=14;
+
+    // Store button positions for hit testing
+    HE._rotBtns = {
+      ccw: {x:cx-38, y:topY, r:btnR},
+      cw:  {x:cx+38, y:topY, r:btnR},
+      r90: {x:cx, y:topY, r:btnR},
+      del: {x:ix+iw+4, y:iy-4, r:10}
+    };
+
+    // Background bar
+    ctx.fillStyle='rgba(0,0,0,.7)';
+    ctx.beginPath(); ctx.roundRect(cx-58, topY-btnR-2, 116, btnR*2+4, 6); ctx.fill();
+
+    // CCW button (↺ -15°)
+    ctx.fillStyle='#3a6ea5'; ctx.beginPath(); ctx.arc(cx-38, topY, btnR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('↺', cx-38, topY);
+
+    // 90° snap button
+    ctx.fillStyle='#c5a059'; ctx.beginPath(); ctx.arc(cx, topY, btnR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#000'; ctx.font='bold 10px sans-serif';
+    ctx.fillText('90°', cx, topY);
+
+    // CW button (↻ +15°)
+    ctx.fillStyle='#3a6ea5'; ctx.beginPath(); ctx.arc(cx+38, topY, btnR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif';
+    ctx.fillText('↻', cx+38, topY);
+
+    // Delete button (top-right corner)
+    ctx.fillStyle='rgba(220,50,50,.85)'; ctx.beginPath(); ctx.arc(ix+iw+4, iy-4, 10, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 12px sans-serif';
+    ctx.fillText('✕', ix+iw+4, iy-4);
+  } else {
+    HE._rotBtns = null;
+  }
 
   // Distance indicators for selected/dragging object
   if(HE.selected!==null && h.layout[HE.selected]){
@@ -538,6 +585,35 @@ function initHangarEditorEvents(){
     if(e.button===1||e.altKey){HE.panning=true;return;}
     const h=APP.hangars.find(x=>x.id===HE.hangarId);
     if(!h) return;
+    // Check rotation/delete button hits first
+    if(HE._rotBtns && HE.selected!==null){
+      const btns=HE._rotBtns;
+      const hitBtn = (b)=> Math.hypot(mx-b.x, my-b.y) <= b.r;
+      if(hitBtn(btns.ccw)){
+        const li=h.layout[HE.selected];
+        li.angle = (li.angle||0) - Math.PI/12; // -15°
+        drawHangarInterior(); updateHEProps(); return;
+      }
+      if(hitBtn(btns.cw)){
+        const li=h.layout[HE.selected];
+        li.angle = (li.angle||0) + Math.PI/12; // +15°
+        drawHangarInterior(); updateHEProps(); return;
+      }
+      if(hitBtn(btns.r90)){
+        const li=h.layout[HE.selected];
+        // Snap to nearest 90°: 0→90→180→270→0
+        const curDeg = Math.round((li.angle||0)*180/Math.PI) % 360;
+        const next = (Math.round(curDeg/90)*90 + 90) % 360;
+        li.angle = next * Math.PI/180;
+        drawHangarInterior(); updateHEProps(); return;
+      }
+      if(hitBtn(btns.del)){
+        h.layout.splice(HE.selected,1);
+        HE.selected=null; HE._rotBtns=null;
+        syncHangarItems(h); buildHEPalette(h);
+        drawHangarInterior(); updateHEProps(); return;
+      }
+    }
     // Placing mode
     if(HE.placing){
       const wm=(mx-HE.panX)/HE.ppm, hm=(my-HE.panY)/HE.ppm;
