@@ -873,12 +873,34 @@ function loadPreset(idx){
     const s=APP.calcState[pi.id];
     if(s) s.opts[pi.oi]=(s.opts[pi.oi]||0)+pi.qty;
   });
+  // Create buildings/hangars from preset
+  if(preset.buildings && preset.buildings.length){
+    const btIds = BUILDING_TYPES.map(b=>b.id); // ['tent_cold','tent_warm','air','lstk','wood','concrete']
+    preset.buildings.forEach(bld=>{
+      const typeId = typeof bld.type==='number' ? (btIds[bld.type]||'lstk') : (bld.type||'lstk');
+      const area = bld.area || 2400;
+      // Calculate optimal w×h from area (prefer wider: ratio ~1.5:1)
+      const h = Math.round(Math.sqrt(area / 1.5));
+      const w = Math.round(area / h);
+      const hangar = {id:Date.now()+Math.random()*1000|0, type:typeId, items:{}, w:w, h:h, layout:[]};
+      // Auto-assign sport items to this hangar
+      const sportCats = ['racket','team','athletics','fun'];
+      preset.items.forEach(pi=>{
+        const cat = CATALOG.find(c=>c.id===pi.id);
+        if(cat && sportCats.includes(cat.cat)){
+          hangar.items[pi.id] = {count:pi.qty, optIdx:pi.oi};
+        }
+      });
+      APP.hangars.push(hangar);
+    });
+  }
   // Re-render
   renderAllGrids();
+  renderHangars();
   renderSettings();
   recalc();
   updateCalcBadge();
-  // Switch to first category tab
-  const firstTab=document.querySelectorAll('#calcTabs .cTab')[1];
-  if(firstTab) switchCTab('racket',firstTab);
+  // Switch to buildings tab to show the result
+  const bldTab = document.querySelector('#calcTabs .cTab[onclick*="building"]');
+  if(bldTab) switchCTab('building', bldTab);
 }
