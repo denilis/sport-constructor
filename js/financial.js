@@ -44,6 +44,14 @@ function addStaffRow(){
   calcFin();
 }
 
+function switchFinTab(tab, btn){
+  document.querySelectorAll('.finPage').forEach(p=>p.classList.remove('show'));
+  document.querySelectorAll('.finSubTab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('finPage' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('show');
+  if(btn) btn.classList.add('active');
+  calcFin();
+}
+
 function toggleFinBlock(id){
   const el = document.getElementById(id);
   const h4 = el.previousElementSibling;
@@ -195,9 +203,9 @@ function calcFin(){
 
   // ── KPI CARDS ──
   document.getElementById('finKPI').innerHTML = `
-    <div class="finCard"><div class="fVal">${fmt(capex)} ₽</div><div class="fLbl">CAPEX (инвестиции)</div></div>
-    <div class="finCard green"><div class="fVal">${fmt(Math.round(revYear))} ₽</div><div class="fLbl">Выручка / год</div></div>
-    <div class="finCard${ebitda>=0?' green':' red'}"><div class="fVal">${fmt(Math.round(ebitda))} ₽</div><div class="fLbl">EBITDA / год (${margin.toFixed(0)}%)</div></div>
+    <div class="finCard"><div class="fVal">${fmt(capex)}</div><div class="fLbl">CAPEX (инвестиции)</div></div>
+    <div class="finCard green"><div class="fVal">${fmt(Math.round(revYear))}</div><div class="fLbl">Выручка / год</div></div>
+    <div class="finCard${ebitda>=0?' green':' red'}"><div class="fVal">${fmt(Math.round(ebitda))}</div><div class="fLbl">EBITDA / год (${margin.toFixed(0)}%)</div></div>
     <div class="finCard blue"><div class="fVal">${paybackMonths<999?paybackMonths+' мес':'—'}</div><div class="fLbl">Окупаемость (ROI ${roi.toFixed(0)}%)</div></div>
   `;
 
@@ -256,4 +264,31 @@ function calcFin(){
     return `<div style="position:absolute;left:${left}px;bottom:${bottom}px;width:${bw}px;height:${h}px;background:${clr};border-radius:3px;opacity:.7;" title="Месяц ${b.month}: ${fmt(Math.round(b.cf))} ₽"></div>
     ${b.month % 3===0 ? `<div style="position:absolute;left:${left}px;bottom:-16px;font-size:8px;color:var(--tx3);width:${bw}px;text-align:center;">${b.month}</div>` : ''}`;
   }).join('') + `<div style="position:absolute;left:0;right:0;top:${chartH/2}px;height:1px;background:var(--bd2);"></div>`;
+
+  // ── TEXT SUMMARY ──
+  const sumEl = document.getElementById('finSummaryText');
+  if(sumEl){
+    const paybackYears = paybackMonths < 999 ? (paybackMonths/12).toFixed(1) : '—';
+    const profitStatus = ebitda > 0
+      ? `<span style="color:var(--green);">проект прибыльный</span>`
+      : `<span style="color:var(--red);">проект убыточный</span>`;
+    const marginStatus = margin > 30 ? 'высокая' : margin > 15 ? 'средняя' : margin > 0 ? 'низкая' : 'отрицательная';
+    const topExpense = expItems.sort((a,b)=>b.val-a.val)[0];
+
+    let lines = [];
+    lines.push(`Общий объём инвестиций (CAPEX): <b>${fmt(capex)}</b>, из них оборудование и строительство — ${fmt(capexEquip)}.`);
+    lines.push(`Прогнозная годовая выручка: <b>${fmt(Math.round(revYear))}</b> при средней загрузке ${Math.round(avgLoad*100)}% и сезоне ${season} мес.`);
+    lines.push(`Годовые операционные расходы (OPEX): <b>${fmt(Math.round(opexYear))}</b> (фикс. ${fmt(Math.round(fixedMonth*12))} + перемен. ${fmt(Math.round(variableMonth*season))}).`);
+    lines.push(`EBITDA: <b>${fmt(Math.round(ebitda))}/год</b> — ${profitStatus}, маржинальность ${marginStatus} (${margin.toFixed(1)}%).`);
+    lines.push(`Чистая прибыль (после налогов ~20%): <b>${fmt(Math.round(netProfit))}/год</b>.`);
+    if(paybackMonths < 999){
+      lines.push(`Срок окупаемости: <b>${paybackMonths} мес.</b> (${paybackYears} лет). ROI: ${roi.toFixed(1)}%.`);
+    } else {
+      lines.push(`<span style="color:var(--red);">Проект не окупается при текущих параметрах.</span> Рекомендуется пересмотреть ценообразование или снизить расходы.`);
+    }
+    if(topExpense) lines.push(`Крупнейшая статья расходов: <b>${topExpense.lbl}</b> — ${fmt(topExpense.val)}/мес (${Math.round(topExpense.val/expTotal*100)}% от OPEX).`);
+    lines.push(`Доходных объектов: <b>${totalRevUnits}</b>. Персонал: <b>${FIN_STAFF.reduce((s,r)=>s+r.qty,0)} чел.</b> (ФОТ ${fmt(staffTotal)}/мес).`);
+
+    sumEl.innerHTML = lines.map(l=>`<p style="margin-bottom:6px;">${l}</p>`).join('');
+  }
 }

@@ -222,125 +222,175 @@
 <!-- ════════════════════════════════ MODULE 4: FINANCIAL MODEL ════════════════════════════════ -->
 <div class="module" id="modFin">
   <div style="max-width:1100px;width:100%;">
-    <h2 style="font-size:16px;color:var(--gold2);margin-bottom:4px;">Финансовая модель проекта</h2>
-    <p style="font-size:11px;color:var(--tx3);margin-bottom:20px;">Автоматический расчёт на основе выбранного оборудования. Корректируйте параметры для точного прогноза.</p>
 
-    <div class="finGrid" id="finKPI"></div>
+    <!-- SUB-TABS: Settings vs Results -->
+    <div class="finSubTabs">
+      <button class="finSubTab active" onclick="switchFinTab('settings',this)">Настройки</button>
+      <button class="finSubTab" onclick="switchFinTab('results',this)">Финмодель</button>
+    </div>
 
-    <!-- DETAILED SETTINGS BLOCKS -->
-    <div class="finRow" style="margin-bottom:20px;">
+    <!-- ═══════════ PAGE 1: SETTINGS ═══════════ -->
+    <div class="finPage show" id="finPageSettings">
+      <h2 style="font-size:16px;color:var(--gold2);margin-bottom:4px;">Настройки финансовой модели</h2>
+      <p style="font-size:11px;color:var(--tx3);margin-bottom:20px;">Задайте параметры доходов, расходов и инвестиций. Результаты — на вкладке «Финмодель».</p>
 
-      <!-- REVENUE SETTINGS -->
-      <div class="finPanel">
-        <h4 class="finToggle" onclick="toggleFinBlock('finRevBlock')">Доходы (Revenue) <span class="finArrow">▼</span></h4>
-        <div id="finRevBlock">
+      <div class="finRow" style="margin-bottom:20px;">
+        <!-- REVENUE SETTINGS -->
+        <div class="finPanel">
+          <h4 class="finToggle" onclick="toggleFinBlock('finRevBlock')">Доходы (Revenue) <span class="finArrow">▼</span></h4>
+          <div id="finRevBlock">
+            <table class="finTbl">
+              <tr><td>Часов работы / день</td><td class="r"><input class="finInput" id="finHours" type="number" value="14" min="1" max="24" onchange="calcFin()"></td></tr>
+              <tr><td>Средний чек / час аренды</td><td class="r"><input class="finInput" id="finTicket" type="number" value="3000" min="100" step="100" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Загрузка (средняя)</td><td class="r"><input class="finInput" id="finLoad" type="number" value="65" min="10" max="100" onchange="calcFin()"> %</td></tr>
+              <tr><td>Сезон (месяцев в году)</td><td class="r"><input class="finInput" id="finSeason" type="number" value="12" min="1" max="12" onchange="calcFin()"></td></tr>
+              <tr><td>Кол-во площадок (доходных)</td><td class="r" id="finCourts">—</td></tr>
+            </table>
+            <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Загрузка по месяцам (%)</h4>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:6px;" id="finMonthLoad"></div>
+            <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Доп. доходы / мес</h4>
+            <table class="finTbl">
+              <tr><td>Кафе / бар</td><td class="r"><input class="finInput" id="finRevCafe" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Прокат оборудования</td><td class="r"><input class="finInput" id="finRevRent" type="number" value="0" min="0" step="5000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Мероприятия / турниры</td><td class="r"><input class="finInput" id="finRevEvents" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Глэмпинг / проживание</td><td class="r"><input class="finInput" id="finRevGlamp" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>СПА / велнес</td><td class="r"><input class="finInput" id="finRevSpa" type="number" value="0" min="0" step="5000" onchange="calcFin()"> ₽</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- CAPEX SETTINGS -->
+        <div class="finPanel">
+          <h4 class="finToggle" onclick="toggleFinBlock('finCapBlock')">CAPEX (Инвестиции) <span class="finArrow">▼</span></h4>
+          <div id="finCapBlock">
+            <div id="finCapList"></div>
+            <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Дополнительные затраты</h4>
+            <table class="finTbl">
+              <tr><td>Проектирование</td><td class="r"><input class="finInput" id="finCapDesign" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Подключение коммуникаций</td><td class="r"><input class="finInput" id="finCapComm" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Благоустройство территории</td><td class="r"><input class="finInput" id="finCapLand" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Мебель и оснащение</td><td class="r"><input class="finInput" id="finCapFurn" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+              <tr><td>Непредвиденные (резерв)</td><td class="r"><input class="finInput" id="finCapReserve" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="finRow" style="margin-bottom:20px;">
+        <!-- STAFF SETTINGS -->
+        <div class="finPanel">
+          <h4 class="finToggle" onclick="toggleFinBlock('finStaffBlock')">Персонал (штатное расписание) <span class="finArrow">▼</span></h4>
+          <div id="finStaffBlock">
+            <table class="finTbl" id="finStaffTbl">
+              <thead><tr><th>Должность</th><th>Кол-во</th><th>Зарплата</th><th>Итого</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <button style="margin-top:8px;padding:4px 12px;font-size:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;color:var(--tx2);cursor:pointer;" onclick="addStaffRow()">+ Добавить должность</button>
+            <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finStaffTotal"></div>
+          </div>
+        </div>
+
+        <!-- UTILITIES SETTINGS -->
+        <div class="finPanel">
+          <h4 class="finToggle" onclick="toggleFinBlock('finUtilBlock')">Коммунальные и аренда <span class="finArrow">▼</span></h4>
+          <div id="finUtilBlock">
+            <table class="finTbl">
+              <tr><td>Аренда земли / участка</td><td class="r"><input class="finInput" id="finRent" type="number" value="200000" min="0" step="10000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Электроэнергия</td><td class="r"><input class="finInput" id="finElec" type="number" value="80000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Отопление</td><td class="r"><input class="finInput" id="finHeat" type="number" value="40000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Водоснабжение</td><td class="r"><input class="finInput" id="finWater" type="number" value="15000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Вывоз мусора / уборка</td><td class="r"><input class="finInput" id="finWaste" type="number" value="15000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Интернет / связь</td><td class="r"><input class="finInput" id="finInternet" type="number" value="5000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Охрана</td><td class="r"><input class="finInput" id="finSecurity" type="number" value="30000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Страхование</td><td class="r"><input class="finInput" id="finInsurance" type="number" value="15000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            </table>
+            <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finUtilTotal"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="finRow" style="margin-bottom:20px;">
+        <!-- MARKETING & OTHER OPEX -->
+        <div class="finPanel">
+          <h4 class="finToggle" onclick="toggleFinBlock('finMarkBlock')">Маркетинг и прочие расходы <span class="finArrow">▼</span></h4>
+          <div id="finMarkBlock">
+            <table class="finTbl">
+              <tr><td>Онлайн-реклама (Яндекс, VK)</td><td class="r"><input class="finInput" id="finMarkOnline" type="number" value="40000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>SMM / контент</td><td class="r"><input class="finInput" id="finMarkSMM" type="number" value="20000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Наружная реклама</td><td class="r"><input class="finInput" id="finMarkOutdoor" type="number" value="10000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>CRM / софт / подписки</td><td class="r"><input class="finInput" id="finMarkSoft" type="number" value="10000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Обслуживание оборудования</td><td class="r"><input class="finInput" id="finMaint" type="number" value="30000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Расходные материалы</td><td class="r"><input class="finInput" id="finConsumables" type="number" value="15000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+              <tr><td>Бухгалтерия / юрист</td><td class="r"><input class="finInput" id="finAccounting" type="number" value="25000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
+            </table>
+            <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finMarkTotal"></div>
+          </div>
+        </div>
+
+        <!-- SEASON SETTINGS -->
+        <div class="finPanel">
+          <h4>Сезонность и режим работы</h4>
+          <p style="font-size:10px;color:var(--tx3);margin-bottom:12px;">Фиксированные расходы (персонал, аренда, страхование) начисляются 12 месяцев. Переменные (коммуналка, маркетинг, обслуживание) — только в сезон.</p>
           <table class="finTbl">
-            <tr><td>Часов работы / день</td><td class="r"><input class="finInput" id="finHours" type="number" value="14" min="1" max="24" onchange="calcFin()"></td></tr>
-            <tr><td>Средний чек / час аренды</td><td class="r"><input class="finInput" id="finTicket" type="number" value="3000" min="100" step="100" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Загрузка (средняя)</td><td class="r"><input class="finInput" id="finLoad" type="number" value="65" min="10" max="100" onchange="calcFin()"> %</td></tr>
-            <tr><td>Сезон (месяцев в году)</td><td class="r"><input class="finInput" id="finSeason" type="number" value="12" min="1" max="12" onchange="calcFin()"></td></tr>
-            <tr><td>Кол-во площадок (доходных)</td><td class="r" id="finCourts">—</td></tr>
-          </table>
-          <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Загрузка по месяцам (%)</h4>
-          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:6px;" id="finMonthLoad"></div>
-          <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Доп. доходы / мес</h4>
-          <table class="finTbl">
-            <tr><td>Кафе / бар</td><td class="r"><input class="finInput" id="finRevCafe" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Прокат оборудования</td><td class="r"><input class="finInput" id="finRevRent" type="number" value="0" min="0" step="5000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Мероприятия / турниры</td><td class="r"><input class="finInput" id="finRevEvents" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Глэмпинг / проживание</td><td class="r"><input class="finInput" id="finRevGlamp" type="number" value="0" min="0" step="10000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>СПА / велнес</td><td class="r"><input class="finInput" id="finRevSpa" type="number" value="0" min="0" step="5000" onchange="calcFin()"> ₽</td></tr>
+            <thead><tr><th>Тип расхода</th><th style="text-align:right">Период</th></tr></thead>
+            <tbody>
+              <tr><td>Персонал (ФОТ)</td><td class="r" style="color:var(--cyan);">12 мес (фикс)</td></tr>
+              <tr><td>Аренда земли</td><td class="r" style="color:var(--cyan);">12 мес (фикс)</td></tr>
+              <tr><td>Охрана, страхование</td><td class="r" style="color:var(--cyan);">12 мес (фикс)</td></tr>
+              <tr><td>Бухгалтерия, софт, интернет</td><td class="r" style="color:var(--cyan);">12 мес (фикс)</td></tr>
+              <tr><td>Электроэнергия, отопление, вода</td><td class="r" style="color:var(--amber);">сезон (перемен.)</td></tr>
+              <tr><td>Маркетинг (онлайн, SMM, наружка)</td><td class="r" style="color:var(--amber);">сезон (перемен.)</td></tr>
+              <tr><td>Обслуживание, расходники</td><td class="r" style="color:var(--amber);">сезон (перемен.)</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
 
-      <!-- CAPEX SETTINGS -->
-      <div class="finPanel">
-        <h4 class="finToggle" onclick="toggleFinBlock('finCapBlock')">CAPEX (Инвестиции) <span class="finArrow">▼</span></h4>
-        <div id="finCapBlock">
-          <div id="finCapList"></div>
-          <h4 style="margin-top:14px;font-size:11px;color:var(--tx2);">Дополнительные затраты</h4>
-          <table class="finTbl">
-            <tr><td>Проектирование</td><td class="r"><input class="finInput" id="finCapDesign" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Подключение коммуникаций</td><td class="r"><input class="finInput" id="finCapComm" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Благоустройство территории</td><td class="r"><input class="finInput" id="finCapLand" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Мебель и оснащение</td><td class="r"><input class="finInput" id="finCapFurn" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
-            <tr><td>Непредвиденные (резерв)</td><td class="r"><input class="finInput" id="finCapReserve" type="number" value="0" min="0" step="50000" onchange="calcFin()"> ₽</td></tr>
-          </table>
-        </div>
+      <div style="text-align:center;padding:16px 0;">
+        <button class="btnGold" onclick="switchFinTab('results',document.querySelectorAll('.finSubTab')[1])" style="font-size:13px;padding:12px 32px;">Рассчитать и перейти к финмодели &rarr;</button>
       </div>
     </div>
 
-    <div class="finRow" style="margin-bottom:20px;">
+    <!-- ═══════════ PAGE 2: RESULTS ═══════════ -->
+    <div class="finPage" id="finPageResults">
+      <h2 style="font-size:16px;color:var(--gold2);margin-bottom:4px;">Финансовая модель проекта</h2>
+      <p style="font-size:11px;color:var(--tx3);margin-bottom:20px;">Итоговые показатели на основе заданных параметров. Для изменения перейдите в «Настройки».</p>
 
-      <!-- STAFF SETTINGS -->
-      <div class="finPanel">
-        <h4 class="finToggle" onclick="toggleFinBlock('finStaffBlock')">Персонал (штатное расписание) <span class="finArrow">▼</span></h4>
-        <div id="finStaffBlock">
-          <table class="finTbl" id="finStaffTbl">
-            <thead><tr><th>Должность</th><th>Кол-во</th><th>Зарплата</th><th>Итого</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <button style="margin-top:8px;padding:4px 12px;font-size:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;color:var(--tx2);cursor:pointer;" onclick="addStaffRow()">+ Добавить должность</button>
-          <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finStaffTotal"></div>
+      <!-- KPI CARDS -->
+      <div class="finGrid" id="finKPI"></div>
+
+      <!-- TEXT SUMMARY -->
+      <div class="finPanel" style="margin-bottom:20px;">
+        <h4>Краткое резюме</h4>
+        <div id="finSummaryText" style="font-size:12px;color:var(--tx);line-height:1.7;"></div>
+      </div>
+
+      <!-- P&L + EXPENSE STRUCTURE -->
+      <div class="finRow" style="margin-bottom:20px;">
+        <div class="finPanel">
+          <h4>P&L — Годовой прогноз</h4>
+          <table class="finTbl" id="finPL"></table>
+        </div>
+        <div class="finPanel">
+          <h4>Структура расходов</h4>
+          <div class="finBar" id="finExpBar"></div>
+          <div id="finExpLegend"></div>
         </div>
       </div>
 
-      <!-- UTILITIES SETTINGS -->
-      <div class="finPanel">
-        <h4 class="finToggle" onclick="toggleFinBlock('finUtilBlock')">Коммунальные и аренда <span class="finArrow">▼</span></h4>
-        <div id="finUtilBlock">
-          <table class="finTbl">
-            <tr><td>Аренда земли / участка</td><td class="r"><input class="finInput" id="finRent" type="number" value="200000" min="0" step="10000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Электроэнергия</td><td class="r"><input class="finInput" id="finElec" type="number" value="80000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Отопление</td><td class="r"><input class="finInput" id="finHeat" type="number" value="40000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Водоснабжение</td><td class="r"><input class="finInput" id="finWater" type="number" value="15000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Вывоз мусора / уборка</td><td class="r"><input class="finInput" id="finWaste" type="number" value="15000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Интернет / связь</td><td class="r"><input class="finInput" id="finInternet" type="number" value="5000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Охрана</td><td class="r"><input class="finInput" id="finSecurity" type="number" value="30000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Страхование</td><td class="r"><input class="finInput" id="finInsurance" type="number" value="15000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-          </table>
-          <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finUtilTotal"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="finRow" style="margin-bottom:20px;">
-      <!-- MARKETING & OTHER OPEX -->
-      <div class="finPanel">
-        <h4 class="finToggle" onclick="toggleFinBlock('finMarkBlock')">Маркетинг и прочие расходы <span class="finArrow">▼</span></h4>
-        <div id="finMarkBlock">
-          <table class="finTbl">
-            <tr><td>Онлайн-реклама (Яндекс, VK)</td><td class="r"><input class="finInput" id="finMarkOnline" type="number" value="40000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>SMM / контент</td><td class="r"><input class="finInput" id="finMarkSMM" type="number" value="20000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Наружная реклама</td><td class="r"><input class="finInput" id="finMarkOutdoor" type="number" value="10000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>CRM / софт / подписки</td><td class="r"><input class="finInput" id="finMarkSoft" type="number" value="10000" min="0" step="1000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Обслуживание оборудования</td><td class="r"><input class="finInput" id="finMaint" type="number" value="30000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Расходные материалы</td><td class="r"><input class="finInput" id="finConsumables" type="number" value="15000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-            <tr><td>Бухгалтерия / юрист</td><td class="r"><input class="finInput" id="finAccounting" type="number" value="25000" min="0" step="5000" onchange="calcFin()"> ₽/мес</td></tr>
-          </table>
-          <div style="margin-top:8px;font-size:11px;color:var(--gold2);font-weight:600;" id="finMarkTotal"></div>
+      <!-- PAYBACK CHART -->
+      <div class="finRow" style="margin-bottom:20px;">
+        <div class="finPanel" style="grid-column:1/-1;">
+          <h4>Окупаемость (накопительный Cash Flow)</h4>
+          <div class="finChart" id="finPayback"></div>
         </div>
       </div>
 
-      <!-- P&L -->
-      <div class="finPanel">
-        <h4>P&L — Годовой прогноз</h4>
-        <table class="finTbl" id="finPL"></table>
+      <div style="text-align:center;padding:16px 0;">
+        <button class="btnGhost" onclick="switchFinTab('settings',document.querySelectorAll('.finSubTab')[0])">&larr; Вернуться к настройкам</button>
       </div>
     </div>
 
-    <div class="finRow">
-      <div class="finPanel">
-        <h4>Структура расходов</h4>
-        <div class="finBar" id="finExpBar"></div>
-        <div id="finExpLegend"></div>
-      </div>
-      <div class="finPanel">
-        <h4>Окупаемость (накопительный Cash Flow)</h4>
-        <div class="finChart" id="finPayback"></div>
-      </div>
-    </div>
   </div>
 </div>
 

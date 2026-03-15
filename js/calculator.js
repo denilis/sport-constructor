@@ -2,14 +2,30 @@
 // CALCULATOR
 // ═══════════════════════════════════════════════════════
 if(!APP.thumbCache) APP.thumbCache = {};
+if(!APP.localThumbs) APP.localThumbs = {};
+
+// Check which local thumbnails exist (img/thumbs/*.jpg)
+function checkLocalThumbs(){
+  CATALOG.forEach(item => {
+    item.options.forEach((opt, oi) => {
+      const key = item.id + '_' + oi;
+      const img = new Image();
+      img.onload = () => { APP.localThumbs[key] = true; };
+      img.src = 'img/thumbs/' + key + '.jpg';
+    });
+  });
+}
 
 function initCalc() {
   CATALOG.forEach(it => { APP.calcState[it.id] = {opts: it.options.map(()=>0)}; });
-  renderAllGrids();
-  // Add one default hangar
-  addHangar();
-  renderSettings();
-  recalc();
+  checkLocalThumbs();
+  // Small delay to let local thumb checks complete, then render
+  setTimeout(() => {
+    renderAllGrids();
+    addHangar();
+    renderSettings();
+    recalc();
+  }, 300);
 }
 
 function switchCTab(cat, btn) {
@@ -61,9 +77,11 @@ function renderCard(item) {
     const q=s.opts[oi]||0;
     const specsTags = opt.specs ? `<div class="oSpecs">${opt.specs.map(s=>`<span class="oSpecTag">${s}</span>`).join('')}</div>` : '';
     const imgKey = item.id+'_'+oi;
+    const localThumb = 'img/thumbs/'+imgKey+'.jpg';
     const cached = APP.thumbCache?.[imgKey];
-    const thumbContent = cached
-      ? `<img src="${cached}" alt="${opt.n}">`
+    const thumbSrc = APP.localThumbs?.[imgKey] ? localThumb : (cached || null);
+    const thumbContent = thumbSrc
+      ? `<img src="${thumbSrc}" alt="${opt.n}">`
       : `<div class="thumbGen" onclick="genThumb('${item.id}',${oi},event)">📷<br>Фото</div>`;
     return `<div class="oVarRow${q>0?' active':''}">
       <div class="oVarThumb" id="thumb-${imgKey}" onmouseenter="showThumbFull(this)" onmouseleave="hideThumbFull()">${thumbContent}</div>
