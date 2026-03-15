@@ -103,7 +103,7 @@ function heAutoPlace(){
   const usableW = h.w - 2*wo;
   const usableH = h.h - 2*wo;
 
-  // Collect items to place: from calculator selection
+  // Collect items to place from calculator selection
   const toPlace = [];
   CATALOG.forEach(it=>{
     if(it.areaW<=0||it.areaL<=0) return;
@@ -117,53 +117,77 @@ function heAutoPlace(){
 
   if(!toPlace.length){ alert('Нет объектов для расстановки. Выберите объекты в калькуляторе.'); return; }
 
-  // Sort by area descending (place big objects first)
-  toPlace.sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+  // Clear existing layout for clean auto-placement
+  h.layout = [];
 
-  // Shelf-based bin packing
+  // Group identical items together for uniform rows
+  const groups = {};
+  toPlace.forEach(obj=>{
+    if(!groups[obj.itemId]) groups[obj.itemId]={...obj, count:0};
+    groups[obj.itemId].count++;
+  });
+
+  // Sort groups: largest area first
+  const sortedGroups = Object.values(groups).sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+
+  // Smart orientation: for each group, pick orientation that fits more items per row
+  // and aligns long side with long side of hangar for efficiency
   let placed = [];
   let notFit = [];
-  let curX = wo;
   let curY = wo;
-  let rowH = 0;
 
-  for(const obj of toPlace){
-    // Try both orientations
-    let bw = obj.w, bh = obj.h;
-    let rotated = false;
+  for(const grp of sortedGroups){
+    const bw = grp.w, bh = grp.h;
 
-    // Check if fits in current row
-    let fits = false;
-    for(let rot=0; rot<2; rot++){
-      const tw = rot===0 ? bw : bh;
-      const th = rot===0 ? bh : bw;
-      if(curX + tw <= h.w - wo && curY + th <= h.h - wo){
-        placed.push({itemId:obj.itemId, x:curX, y:curY, w:tw, h:th, angle:rot===1?90:0, name:obj.name});
-        curX += tw + gap;
-        rowH = Math.max(rowH, th);
-        fits = true;
+    // Try both orientations: pick the one that fits more items per row
+    // Orientation 0: w along X, h along Y (original)
+    // Orientation 1: h along X, w along Y (rotated 90°)
+    const perRow0 = Math.floor((usableW + gap) / (bw + gap));
+    const perRow1 = Math.floor((usableW + gap) / (bh + gap));
+
+    // Choose orientation that places more per row; if equal, prefer shorter row height
+    let useRot = 0;
+    let tw, th, perRow;
+    if(perRow0 >= perRow1 && perRow0 > 0){
+      useRot = 0; tw = bw; th = bh; perRow = perRow0;
+    } else if(perRow1 > 0){
+      useRot = 1; tw = bh; th = bw; perRow = perRow1;
+    } else {
+      // Neither fits — try individual placement
+      for(let i=0; i<grp.count; i++) notFit.push(grp);
+      continue;
+    }
+
+    // Place items in uniform rows
+    let count = grp.count;
+    let curX = wo;
+    let rowPlaced = 0;
+
+    while(count > 0){
+      // Check if new row fits vertically
+      if(curY + th > h.h - wo){
+        for(let i=0; i<count; i++) notFit.push(grp);
         break;
       }
-    }
-    if(fits) continue;
 
-    // New row
-    curX = wo;
-    curY += rowH + gap;
-    rowH = 0;
-
-    for(let rot=0; rot<2; rot++){
-      const tw = rot===0 ? bw : bh;
-      const th = rot===0 ? bh : bw;
-      if(curX + tw <= h.w - wo && curY + th <= h.h - wo){
-        placed.push({itemId:obj.itemId, x:curX, y:curY, w:tw, h:th, angle:rot===1?90:0, name:obj.name});
+      // Place one item
+      if(curX + tw <= h.w - wo){
+        placed.push({itemId:grp.itemId, x:curX, y:curY, w:tw, h:th, angle:useRot===1?Math.PI/2:0});
         curX += tw + gap;
-        rowH = Math.max(rowH, th);
-        fits = true;
-        break;
+        rowPlaced++;
+        count--;
+      } else {
+        // Next row for same group
+        curX = wo;
+        curY += th + gap;
+        rowPlaced = 0;
       }
     }
-    if(!fits) notFit.push(obj);
+
+    // Move to next row for next group (add passage gap between different sport types)
+    if(rowPlaced > 0){
+      curY += th + gap;
+    }
   }
 
   // Apply placement
@@ -175,17 +199,17 @@ function heAutoPlace(){
   drawHangarInterior();
 
   // Report
-  let msg = `Расставлено: ${placed.length} объектов.`;
+  let msg = `✅ Расставлено: ${placed.length} объектов.`;
   if(notFit.length){
-    msg += `\n\nНе поместились (${notFit.length}):`;
-    const groups = {};
-    notFit.forEach(o=>{ groups[o.name]=(groups[o.name]||0)+1; });
-    for(const [name,cnt] of Object.entries(groups)) msg += `\n  • ${name} × ${cnt}`;
+    msg += `\n\n❌ Не поместились (${notFit.length}):`;
+    const nfGroups = {};
+    notFit.forEach(o=>{ nfGroups[o.name]=(nfGroups[o.name]||0)+1; });
+    for(const [name,cnt] of Object.entries(nfGroups)) msg += `\n  • ${name} × ${cnt}`;
 
-    // Calculate extra space needed
     const extraArea = notFit.reduce((s,o)=>s+((o.w+gap)*(o.h+gap)),0);
-    const extraLen = Math.ceil(extraArea / (usableW));
-    msg += `\n\nРекомендация: увеличьте глубину ангара на ~${extraLen}м (до ${h.h+extraLen}м), чтобы вместить все объекты.`;
+    const extraLen = Math.ceil(extraArea / usableW);
+    msg += `\n\n💡 Рекомендация: увеличьте глубину ангара на ~${extraLen}м (до ${h.h+extraLen}м)`;
+    msg += `\nили создайте второй ангар для оставшихся объектов.`;
   }
   alert(msg);
 }
