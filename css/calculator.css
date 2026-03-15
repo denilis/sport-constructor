@@ -77,9 +77,8 @@
 .oUnit{font-size:10px;color:var(--tx3);margin-left:4px;}
 .oPrice{font-size:13px;font-weight:700;color:var(--gold2);font-family:var(--fm);}
 
-/* Building tab */
-#tabBuilding{display:none;}
-#tabBuilding.show{display:flex;flex-direction:column;gap:16px;}
+/* Building tab — now inside modBuilding module, always visible */
+#tabBuilding{display:flex !important;flex-direction:column;gap:16px;}
 .bCard{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r2);overflow:hidden;}
 .bCardHead{
   display:flex;align-items:center;justify-content:space-between;

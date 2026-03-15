@@ -19,9 +19,13 @@ const APP = {
 // ═══════════════════════════════════════════════════════
 function switchModule(id, btn) {
   document.querySelectorAll('.module').forEach(m=>m.classList.remove('active'));
-  document.getElementById('mod'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('active');
+  // Map id to element id (building -> modBuilding, calc -> modCalc, etc.)
+  const modMap = {calc:'modCalc', building:'modBuilding', plan:'modPlan', render:'modRender', fin:'modFin'};
+  const modEl = document.getElementById(modMap[id] || 'mod'+id.charAt(0).toUpperCase()+id.slice(1));
+  if(modEl) modEl.classList.add('active');
   document.querySelectorAll('.mTab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  if(id==='building') { renderHangars(); recalc(); }
   if(id==='plan') buildLibrary();
   if(id==='calc' && typeof syncPlanToCalc==='function') syncPlanToCalc();
   if(id==='render') genPrompts();
@@ -38,12 +42,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   new ResizeObserver(resizePlan).observe(document.getElementById('planCanvas'));
   // Patch gridStep listener
   document.getElementById('gridStep')?.addEventListener('input',drawPlan);
-  // Init ABK with default hangar panel
-  document.getElementById('tabBuilding').style.display='flex';
-  document.getElementById('tabBuilding').style.flexDirection='column';
-  document.getElementById('tabBuilding').style.gap='16px';
-  document.getElementById('tabBuilding').style.padding='16px';
-  document.getElementById('tabBuilding').style.overflow='auto';
+  // Init ABK with default hangar panel (tabBuilding is now inside modBuilding module)
   document.getElementById('tabBuilding').innerHTML=`
     <div class="abkPanel">
       <h4>АБК — Административный блок</h4>
@@ -63,7 +62,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     <button class="btnGhost" onclick="addHangar()" style="margin-top:0;">+ Добавить спортивный ангар</button>
   `;
   renderHangars();
-  document.getElementById('tabBuilding').style.display='none';
   renderSettings();
   // Init hangar editor canvas events
   initHangarEditorEvents();

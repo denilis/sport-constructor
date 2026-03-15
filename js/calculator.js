@@ -30,13 +30,9 @@ function switchCTab(cat, btn) {
   document.querySelectorAll('#calcTabs .cTab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.cGrid').forEach(g=>{g.classList.remove('show');});
-  document.getElementById('tabBuilding').style.display='none';
   document.getElementById('tabSettings').style.display='none';
   const tp=document.getElementById('tabPresets'); if(tp) tp.style.display='none';
-  if(cat==='building'){
-    document.getElementById('tabBuilding').style.display='flex';
-    renderHangars(); calcABK();
-  } else if(cat==='settings'){
+  if(cat==='settings'){
     const tse=document.getElementById('tabSettings');tse.style.display='flex';tse.style.flexDirection='column';
   } else if(cat==='presets'){
     if(tp){tp.style.display='block'; renderPresets();}
@@ -592,7 +588,7 @@ function applyMarketPrices(scope){
 function updatePrice(id,oi,val){const item=CATALOG.find(i=>i.id===id);if(item)item.options[oi].p=+String(val).replace(/\s/g,'');}
 
 function resetCalc(){if(!confirm('Сбросить все выбранные объекты?'))return;APP.hangars=[];initCalc();}
-function goToPlanner(){switchModule('plan',document.querySelectorAll('.mTab')[1]);buildLibrary();}
+function goToPlanner(){switchModule('plan',document.querySelectorAll('.mTab')[2]);buildLibrary();}
 
 // ═══════════════════════════════════════════════════════
 // PRESETS — типовые сценарии
@@ -900,7 +896,7 @@ function loadPreset(idx){
   renderSettings();
   recalc();
   updateCalcBadge();
-  // Switch to buildings tab to show the result
-  const bldTab = document.querySelector('#calcTabs .cTab[onclick*="building"]');
-  if(bldTab) switchCTab('building', bldTab);
+  // Switch to Buildings module to show the result
+  const bldModBtn = document.querySelectorAll('.mTab')[1]; // 02 Здания
+  if(bldModBtn) switchModule('building', bldModBtn);
 }

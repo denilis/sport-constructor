@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sport Constructor Pro</title>
 <link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/calculator.css?v=2">
 <link rel="stylesheet" href="css/planner.css">
 <link rel="stylesheet" href="css/render.css">
 <link rel="stylesheet" href="css/hangar-editor.css">
@@ -21,15 +21,19 @@
       <span>01</span> Калькулятор
       <span class="badge" id="badgeCalc"></span>
     </button>
+    <button class="mTab" onclick="switchModule('building',this)">
+      <span>02</span> Здания
+      <span class="badge" id="badgeBuilding"></span>
+    </button>
     <button class="mTab" onclick="switchModule('plan',this)">
-      <span>02</span> Планировщик
+      <span>03</span> Планировщик
       <span class="badge" id="badgePlan"></span>
     </button>
     <button class="mTab" onclick="switchModule('render',this)">
-      <span>03</span> Рендер / Промпты
+      <span>04</span> Визуализация
     </button>
     <button class="mTab" onclick="switchModule('fin',this)">
-      <span>04</span> Финмодель
+      <span>05</span> Финмодель
     </button>
   </div>
   <div class="appHeaderRight">
@@ -52,7 +56,6 @@
       <button class="cTab" onclick="switchCTab('wellness',this)">Велнес/СПА</button>
       <button class="cTab" onclick="switchCTab('infra',this)">Инфра/АБК</button>
       <button class="cTab" onclick="switchCTab('prep',this)">Благоустройство</button>
-      <button class="cTab" onclick="switchCTab('building',this)">Здания</button>
       <button class="cTab" onclick="switchCTab('settings',this)">⚙ Цены</button>
     </div>
     <div id="calcGrid">
@@ -65,7 +68,6 @@
       <div class="cGrid" id="cg-wellness"></div>
       <div class="cGrid" id="cg-infra"></div>
       <div class="cGrid" id="cg-prep"></div>
-      <div id="tabBuilding"></div>
       <div id="tabSettings"></div>
     </div>
   </div>
@@ -109,7 +111,12 @@
   </aside>
 </div>
 
-<!-- ════════════════════════════════ MODULE 2: PLANNER ════════════════════════════════ -->
+<!-- ════════════════════════════════ MODULE 2: BUILDINGS ════════════════════════════════ -->
+<div class="module" id="modBuilding">
+  <div id="tabBuilding" style="display:flex;flex-direction:column;gap:16px;padding:16px;overflow:auto;max-width:1200px;margin:0 auto;width:100%;"></div>
+</div>
+
+<!-- ════════════════════════════════ MODULE 3: PLANNER ════════════════════════════════ -->
 <div class="module" id="modPlan">
   <div id="planBar">
     <button class="pBtn" onclick="document.getElementById('fileIn').click()">📂 Карта</button>
@@ -192,7 +199,7 @@
     <h3><span>🎬</span> Вид сверху (img2img)</h3>
     <textarea class="promptBox" id="pTop" placeholder="Появится после генерации в модуле 02…" rows="5"></textarea>
     <div class="rRow">
-      <button class="pBtn green" onclick="genPrompts();switchModule('render',document.querySelectorAll('.mTab')[2])">Обновить</button>
+      <button class="pBtn green" onclick="genPrompts();switchModule('render',document.querySelectorAll('.mTab')[3])">Обновить</button>
       <button class="pBtn" onclick="copyEl('pTop')">Копировать</button>
       <select class="resSelect" id="resTop"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
       <select class="resSelect" id="arTop"><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="3:2">3:2</option><option value="21:9">21:9</option></select>
@@ -579,13 +586,16 @@
         <h4>Как работать — 4 простых шага</h4>
         <div class="helpStep"><div class="helpNum">1</div><div class="helpStepText">Откройте <b>Калькулятор</b> — выберите категорию (ракеточные, командные, атлетика и т.д.) и добавьте нужные объекты кнопками <b>+</b> / <b>−</b></div></div>
         <div class="helpStep"><div class="helpNum">2</div><div class="helpStepText">Справа видите <b>Оценку проекта</b> — итоговая стоимость обновляется в реальном времени</div></div>
-        <div class="helpStep"><div class="helpNum">3</div><div class="helpStepText">Перейдите в <b>Планировщик</b> — создайте ангар (укажите размеры) и расставьте выбранные объекты на плане. Используйте <b>Авто-расстановку</b> для быстрого размещения</div></div>
-        <div class="helpStep"><div class="helpNum">4</div><div class="helpStepText">Используйте <b>НейроМозг</b> — опишите голосом или текстом что хотите построить, и AI автоматически соберёт комплектацию</div></div>
+        <div class="helpStep"><div class="helpNum">3</div><div class="helpStepText">Перейдите в <b>Здания</b> — создайте ангары, задайте размеры и расставьте спортивные объекты внутри зданий</div></div>
+        <div class="helpStep"><div class="helpNum">4</div><div class="helpStepText">Перейдите в <b>Планировщик</b> — загрузите карту участка, откалибруйте масштаб и расставьте здания на территории</div></div>
+        <div class="helpStep"><div class="helpNum">5</div><div class="helpStepText">Используйте <b>НейроМозг</b> — опишите голосом или текстом что хотите построить, и AI автоматически соберёт комплектацию</div></div>
         <h4>Навигация</h4>
         <ul>
           <li><b>01 Калькулятор</b> — подбор оборудования и расчёт стоимости</li>
-          <li><b>02 Планировщик</b> — визуальное размещение в ангарах</li>
-          <li><b>03 Рендер / Промпты</b> — генерация визуализаций</li>
+          <li><b>02 Здания</b> — создание ангаров и размещение объектов внутри зданий</li>
+          <li><b>03 Планировщик</b> — размещение зданий на плане участка (территории)</li>
+          <li><b>04 Визуализация</b> — генерация AI-визуализаций проекта</li>
+          <li><b>05 Финмодель</b> — финансовый анализ и окупаемость</li>
           <li><b>НейроМозг</b> — AI-помощник (фиолетовая кнопка)</li>
           <li><b>?</b> — эта инструкция</li>
         </ul>
