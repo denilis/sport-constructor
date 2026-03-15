@@ -83,6 +83,9 @@ function buildHEPalette(h){
     </div>`;
   };
 
+  // Category labels for groups
+  const catLabels = {racket:'🎾 Ракеточные', team:'⚽ Командные', athletics:'🏃 Атлетика', fun:'🎪 Развлечения', glamping:'🏕 Глэмпинг', infra:'🏢 Инфраструктура'};
+
   let html = '';
   if(selected.length){
     html += '<div class="hePalSection">Выбранные в калькуляторе</div>';
@@ -90,7 +93,31 @@ function buildHEPalette(h){
   }
   if(others.length){
     html += '<div class="hePalSection other">Другие объекты</div>';
-    html += others.map(renderItem).join('');
+    // Group others by category
+    const grouped = {};
+    others.forEach(it=>{
+      const cat = ['reception','cafe'].includes(it.id) ? 'infra' : (it.cat||'other');
+      if(!grouped[cat]) grouped[cat]=[];
+      grouped[cat].push(it);
+    });
+    const catOrder = ['racket','team','athletics','fun','glamping','infra'];
+    for(const cat of catOrder){
+      if(!grouped[cat] || !grouped[cat].length) continue;
+      const label = catLabels[cat]||cat;
+      const gid = 'hePalGrp_'+cat;
+      const isOpen = HE['_grp_'+cat]||false;
+      html += `<div class="hePalGroup" onclick="HE['_grp_${cat}']=!HE['_grp_${cat}'];buildHEPalette(APP.hangars.find(x=>x.id===HE.hangarId));" style="cursor:pointer;padding:6px 8px;color:#c5a059;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.05);">
+        <span style="font-size:10px;transition:transform .2s;transform:rotate(${isOpen?'90':'0'}deg)">▶</span> ${label} <span style="color:#555;font-weight:400;font-size:10px">(${grouped[cat].length})</span>
+      </div>`;
+      if(isOpen){
+        html += grouped[cat].map(renderItem).join('');
+      }
+    }
+    // Any remaining categories
+    for(const cat of Object.keys(grouped)){
+      if(catOrder.includes(cat)) continue;
+      html += grouped[cat].map(renderItem).join('');
+    }
   }
   pal.innerHTML = html;
 }
