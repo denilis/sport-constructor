@@ -414,6 +414,8 @@ function drawPlan(){
   const c=cv(),x=ctx();
   c.width=c.width; // clear
   x.fillStyle='#020509';x.fillRect(0,0,c.width,c.height);
+  // Update CAPEX summary
+  if(typeof updateCapex==='function') updateCapex();
 
   // Map image
   if(APP.planImg) x.drawImage(APP.planImg,APP.panX,APP.panY,APP.planImgW*APP.zoom,APP.planImgH*APP.zoom);
@@ -688,6 +690,91 @@ ${Object.keys(ZONE_COLORS).map(z=>`<option value="${z}"${b.zone===z?' selected':
 <div class="pPg"><div class="pPl">ПОЗИЦИЯ</div><div style="font-size:9px;color:var(--tx2);font-family:var(--fm);">${pos}</div></div>
 <div class="pPg"><div class="pPl">ПЛОЩАДЬ ПЯТНА</div><div style="font-size:11px;font-weight:700;color:var(--gold2);font-family:var(--fm);">${b.w*b.h} м²</div></div>
 ${b.hangarId?`<div class="pPg"><button class="pBtn green" style="width:100%;padding:8px;font-size:11px;font-weight:700;" onclick="openHangarFromPlan('${b.hangarId}')">🏗 Редактировать ангар</button><div style="font-size:9px;color:var(--tx4);margin-top:4px;">Откроется конструктор ангара для расстановки объектов внутри</div></div>`:''}`;
+}
+
+// ── CAPEX SUMMARY ──
+function updateCapex(){
+  const el=document.getElementById('capexBody');
+  if(!el) return;
+  const bs=APP.planBuildings;
+  if(!bs.length){el.innerHTML='<div style="color:var(--tx4);padding:4px 0;">Добавьте объекты на план</div>';return;}
+
+  let html='';
+  let total=0;
+
+  // Group by zone for display
+  const groups={};
+  bs.forEach(b=>{
+    const z=b.zone||'other';
+    if(!groups[z]) groups[z]=[];
+    groups[z].push(b);
+  });
+
+  const ZN={sport:'Спорт',event:'Ивент',glamp:'Глэмпинг',well:'Велнесс',gastro:'Гастро',infra:'Инфра',other:'Прочее'};
+
+  for(const [z,items] of Object.entries(groups)){
+    html+=`<div style="color:#c5a059;font-weight:700;margin-top:6px;font-size:8px;letter-spacing:.5px">${ZN[z]||z}</div>`;
+    items.forEach(b=>{
+      // Find price from catalog or hangar
+      let price=0;
+      const catItem=CATALOG.find(c=>c.id===b.sourceId);
+      if(catItem){
+        // Use first option price as reference
+        price=catItem.options[0]?.p||0;
+      } else if(b.hangarId){
+        const h=APP.hangars.find(x=>x.id===b.hangarId);
+        if(h){
+          const bt=BUILDING_TYPES.find(t=>t.id===h.type)||BUILDING_TYPES[0];
+          price=bt.price * b.w * b.h;
+        }
+      }
+      total+=price;
+      html+=`<div style="display:flex;justify-content:space-between;padding:1px 0;color:#ccc;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">${b.label}</span>
+        <span style="white-space:nowrap;color:${price?'#fff':'#555'}">${price?fmtPrice(price)+' ₽':'—'}</span>
+      </div>`;
+    });
+  }
+
+  html+=`<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:4px;display:flex;justify-content:space-between;font-weight:700;font-size:10px;">
+    <span style="color:#c5a059;">ИТОГО</span>
+    <span style="color:#fff;">${fmtPrice(total)} ₽</span>
+  </div>`;
+
+  el.innerHTML=html;
+}
+
+// ── SYNC PLAN → CALCULATOR ──
+function syncPlanToCalc(){
+  // Count placed objects by sourceId and update calculator quantities
+  const counts={};
+  APP.planBuildings.forEach(b=>{
+    if(!b.sourceId||b.sourceId.startsWith('lib_')||b.sourceId.startsWith('hangar_')||b.sourceId.startsWith('cust_')) return;
+    counts[b.sourceId]=(counts[b.sourceId]||0)+1;
+  });
+
+  // Update calculator state
+  for(const [itemId,qty] of Object.entries(counts)){
+    const item=CATALOG.find(c=>c.id===itemId);
+    if(!item) continue;
+    if(!APP.calcState[itemId]) APP.calcState[itemId]={opts:item.options.map(()=>0)};
+    // Set first option to qty if currently 0
+    const curQty=APP.calcState[itemId].opts.reduce((a,b)=>a+b,0);
+    if(curQty<qty){
+      APP.calcState[itemId].opts[0]+=(qty-curQty);
+    }
+  }
+
+  // Sync hangars too
+  APP.planBuildings.forEach(b=>{
+    if(!b.hangarId) return;
+    const exists=APP.hangars.find(h=>h.id===b.hangarId);
+    if(exists){
+      // Update hangar dimensions from plan
+      exists.w=b.w;
+      exists.h=b.h;
+    }
+  });
 }
 
 function openHangarFromPlan(hangarId){

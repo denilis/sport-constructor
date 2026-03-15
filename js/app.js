@@ -23,6 +23,7 @@ function switchModule(id, btn) {
   document.querySelectorAll('.mTab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if(id==='plan') buildLibrary();
+  if(id==='calc' && typeof syncPlanToCalc==='function') syncPlanToCalc();
   if(id==='render') genPrompts();
   if(id==='fin') calcFin();
 }
