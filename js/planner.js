@@ -258,11 +258,9 @@ function buildLibrary(){
 
   if(!window._planLibOpen) window._planLibOpen={};
 
-  const selectedIds = new Set(selected.map(i=>i.id));
-
-  // Render collapsible sport categories
+  // Render collapsible sport categories (ALL items, even if selected in calculator)
   for(const [cat,meta] of Object.entries(catGroups)){
-    const items = CATALOG.filter(i=>i.cat===cat && i.areaW>0 && i.areaL>0 && !selectedIds.has(i.id));
+    const items = CATALOG.filter(i=>i.cat===cat && i.areaW>0 && i.areaL>0);
     if(!items.length) continue;
     const isOpen = window._planLibOpen[cat]||false;
     const grpHdr = document.createElement('div');
@@ -277,6 +275,30 @@ function buildLibrary(){
         el.appendChild(makeLibItem({id:'lib_'+item.id, sourceId:item.id, label:item.name, w:item.areaW, h:item.areaL, ht:0, zone, note:item.desc||''}, zc));
       });
     }
+  }
+
+  // Hangars group — building types from catalog
+  const isHangarOpen = window._planLibOpen['_hangars']||false;
+  const hangarHdr = document.createElement('div');
+  hangarHdr.style.cssText='font-size:10px;color:#c5a059;padding:6px 6px 4px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(255,255,255,.06);margin-top:2px;user-select:none;';
+  hangarHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isHangarOpen?90:0}deg)">▶</span> 🏗 Ангары / Здания <span style="color:#555;font-weight:400;font-size:9px">(${BUILDING_TYPES.length})</span>`;
+  hangarHdr.onclick=()=>{window._planLibOpen['_hangars']=!window._planLibOpen['_hangars']; buildLibrary();};
+  el.appendChild(hangarHdr);
+  if(isHangarOpen){
+    BUILDING_TYPES.forEach(bt=>{
+      const zc=ZONE_COLORS[bt.zone]||ZONE_COLORS.infra;
+      const li=document.createElement('div');
+      li.className='libItem';
+      li.innerHTML=`<div class="liName"><span class="zDot" style="background:${zc.s}"></span>${bt.name}</div><div class="liDim">${fmtPrice(bt.price)} ₽/м² | нажмите для размещения</div>`;
+      li.onclick=()=>{
+        // Create a new hangar in APP.hangars and start placing it
+        const newH={id:Date.now(), type:bt.id, w:40, h:60, wallOffset:3, objectGap:2, layout:[], items:{}};
+        APP.hangars.push(newH);
+        const tpl={id:'hangar_'+newH.id, label:'Ангар ('+bt.name+')', w:newH.w, h:newH.h, ht:8, zone:bt.zone||'infra', note:newH.w*newH.h+' м²', hangarId:newH.id, sourceId:'hangar_'+newH.id};
+        startPlacing(tpl);
+      };
+      el.appendChild(li);
+    });
   }
 
   // Infrastructure group
@@ -664,7 +686,22 @@ function renderProps(){
 ${Object.keys(ZONE_COLORS).map(z=>`<option value="${z}"${b.zone===z?' selected':''}>${z}</option>`).join('')}
 </select></div>
 <div class="pPg"><div class="pPl">ПОЗИЦИЯ</div><div style="font-size:9px;color:var(--tx2);font-family:var(--fm);">${pos}</div></div>
-<div class="pPg"><div class="pPl">ПЛОЩАДЬ ПЯТНА</div><div style="font-size:11px;font-weight:700;color:var(--gold2);font-family:var(--fm);">${b.w*b.h} м²</div></div>`;
+<div class="pPg"><div class="pPl">ПЛОЩАДЬ ПЯТНА</div><div style="font-size:11px;font-weight:700;color:var(--gold2);font-family:var(--fm);">${b.w*b.h} м²</div></div>
+${b.hangarId?`<div class="pPg"><button class="pBtn green" style="width:100%;padding:8px;font-size:11px;font-weight:700;" onclick="openHangarFromPlan('${b.hangarId}')">🏗 Редактировать ангар</button><div style="font-size:9px;color:var(--tx4);margin-top:4px;">Откроется конструктор ангара для расстановки объектов внутри</div></div>`:''}`;
+}
+
+function openHangarFromPlan(hangarId){
+  // Find hangar — hangarId may be string from onclick
+  const hId = typeof hangarId==='string' ? parseInt(hangarId) : hangarId;
+  const h = APP.hangars.find(x=>x.id===hId || x.id===hangarId);
+  if(!h){ alert('Ангар не найден. Создайте его в калькуляторе (вкладка Здания).'); return; }
+  // Sync plan building dimensions with hangar
+  const pb = APP.planSelected;
+  if(pb && pb.hangarId){
+    h.w = pb.w;
+    h.h = pb.h;
+  }
+  openHangarEditor(h.id);
 }
 
 function toggleGrid(){APP.showGrid=!APP.showGrid;document.getElementById('bGrid').classList.toggle('on',APP.showGrid);drawPlan();}
