@@ -14,8 +14,29 @@ function genPrompts(){
   bs.forEach(b=>{if(!zones[b.zone])zones[b.zone]=[];zones[b.zone].push(b);});
   const ZN={sport:'СПОРТ',event:'ИВЕНТ',glamp:'ГЛЕМПИНГ',well:'WELLNESS',gastro:'ГАСТРОНОМИЯ',infra:'ИНФРАСТРУКТУРА',other:'ПРОЧЕЕ'};
 
+  // Landscape options from checkboxes
+  const lndKeepTrees = document.getElementById('lndKeepTrees')?.checked ?? true;
+  const lndDesign = document.getElementById('lndDesign')?.checked ?? true;
+  const lndWater = document.getElementById('lndWater')?.checked ?? false;
+  const lndLighting = document.getElementById('lndLighting')?.checked ?? true;
+  const hasMapImage = !!APP.planImg;
+
+  // Build landscape description
+  let landscapeDesc = '';
+  if(hasMapImage){
+    landscapeDesc = 'CRITICAL: The visualization MUST match the real satellite/aerial photo of the site that was loaded. ';
+    landscapeDesc += 'Preserve the actual terrain, water bodies, roads, and surrounding buildings visible in the photo. ';
+    if(lndKeepTrees) landscapeDesc += 'Keep ALL existing trees and vegetation where no new buildings are placed — only clear trees directly under building footprints. ';
+    else landscapeDesc += 'Trees can be removed for landscaping redesign — replace with designed greenery. ';
+  } else {
+    landscapeDesc += 'No specific site photo loaded — create an idealized flat green site with surrounding forest. ';
+  }
+  if(lndDesign) landscapeDesc += 'Add professional landscape design: paved walking paths, manicured lawns, decorative plantings between buildings. ';
+  if(lndWater) landscapeDesc += 'Include decorative water features: fountains, small ponds or canals between zones. ';
+  if(lndLighting) landscapeDesc += 'Show elegant park lighting along paths and around buildings. ';
+
   // STYLE REFERENCE (photorealistic aerial architectural visualization)
-  const STYLE_BASE = 'Photorealistic aerial architectural visualization, drone photography style. Lush green landscaping with mature trees, manicured lawns, walking paths. Summer daytime, bright natural sunlight, soft shadows. Ultra-detailed textures: glass facades, metal roofs, wooden decks, asphalt parking. Water features reflect surroundings. High-end resort/sports complex aesthetic. 8K render quality, architectural magazine cover shot.';
+  const STYLE_BASE = 'Photorealistic aerial architectural visualization, drone photography style. ' + landscapeDesc + 'Summer daytime, bright natural sunlight, soft shadows. Ultra-detailed textures: glass facades, metal roofs, wooden decks, asphalt parking. High-end resort/sports complex aesthetic. 8K render quality, architectural magazine cover shot.';
 
   // Helper: building description with label overlay
   function bDesc(b, withLabel){
@@ -36,7 +57,11 @@ function genPrompts(){
     });
   });
   topLines.push('\nMATERIALS: Sport hangars — dark grey sandwich panels (RAL 7024/7016) with glass roof sections showing courts inside. Wellness/glamping/restaurant — natural wood cladding (RAL 1001) with full-height glass. Infrastructure — grey metal.');
-  topLines.push('ENVIRONMENT: Dense green trees surrounding the complex, water body around the perimeter, paved parking areas with cars, pedestrian paths, outdoor terraces with umbrellas.');
+  if(hasMapImage){
+    topLines.push('ENVIRONMENT: MATCH THE REAL SITE from loaded aerial/satellite photo. Preserve existing terrain, water, roads, surrounding structures. ' + (lndKeepTrees ? 'Keep existing trees except under new buildings.' : 'Redesign vegetation with professional landscaping.'));
+  } else {
+    topLines.push('ENVIRONMENT: Dense green trees surrounding the complex, paved parking areas with cars, pedestrian paths, outdoor terraces with umbrellas.');
+  }
   topLines.push(STYLE_BASE);
   const topPrompt=topLines.join('\n');
 
