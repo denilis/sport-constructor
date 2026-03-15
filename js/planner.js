@@ -237,25 +237,86 @@ function buildLibrary(){
       el.appendChild(makeLibItem(item,zc));
     });
   }
-  // Standard lib items not in calculator
-  const stdLib=[
-    {id:'lib_spa',label:'СПА-модуль',w:10,h:12,ht:8,zone:'well',note:'дерево+стекло'},
-    {id:'lib_glamp',label:'Глемпинг-домик',w:6,h:8,ht:4,zone:'glamp',note:'модульный'},
+  // Catalog-based collapsible groups (only items with placeable dimensions)
+  const catGroups = {
+    racket:  {label:'🎾 Ракеточные',   zone:'sport'},
+    team:    {label:'⚽ Командные',     zone:'sport'},
+    athletics:{label:'🏃 Атлетика',     zone:'sport'},
+    fun:     {label:'🎪 Развлечения',   zone:'event'},
+    glamping:{label:'🏕️ Глэмпинг',     zone:'glamp'},
+    wellness:{label:'♨️ Велнесс',      zone:'well'},
+  };
+  // Infrastructure items for planner (buildings with real dimensions)
+  const infraLib = [
     {id:'lib_rest',label:'Ресторан',w:40,h:20,ht:6,zone:'gastro',note:'120-150 мест'},
     {id:'lib_terrace',label:'Терраса',w:40,h:15,ht:0,zone:'gastro',note:'открытая'},
     {id:'lib_park',label:'Парковка',w:50,h:30,ht:0,zone:'infra',note:'~70 мест'},
     {id:'lib_boiler',label:'Котельная',w:20,h:20,ht:5,zone:'infra',note:''},
     {id:'lib_mfc',label:'МФЦ/Конференц',w:59,h:30,ht:15,zone:'event',note:'до 200 чел'},
-    {id:'lib_pool',label:'Открытый бассейн',w:48,h:24,ht:4,zone:'well',note:'с подогревом'},
+    {id:'lib_abk',label:'АБК (админ-бытовой)',w:24,h:12,ht:4,zone:'infra',note:'раздевалки+офис'},
   ];
-  const hdr2=document.createElement('div');
-  hdr2.style.cssText='font-size:8px;letter-spacing:1px;color:var(--tx2);padding:6px 4px 2px;font-weight:700;border-top:1px solid var(--bd);margin-top:4px;';
-  hdr2.textContent='СТАНДАРТНЫЕ';
-  el.appendChild(hdr2);
-  stdLib.forEach(item=>{
-    const zc=ZONE_COLORS[item.zone]||ZONE_COLORS.other;
-    el.appendChild(makeLibItem(item,zc));
-  });
+
+  if(!window._planLibOpen) window._planLibOpen={};
+
+  const selectedIds = new Set(selected.map(i=>i.id));
+
+  // Render collapsible sport categories
+  for(const [cat,meta] of Object.entries(catGroups)){
+    const items = CATALOG.filter(i=>i.cat===cat && i.areaW>0 && i.areaL>0 && !selectedIds.has(i.id));
+    if(!items.length) continue;
+    const isOpen = window._planLibOpen[cat]||false;
+    const grpHdr = document.createElement('div');
+    grpHdr.style.cssText='font-size:10px;color:#c5a059;padding:6px 6px 4px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(255,255,255,.06);margin-top:2px;user-select:none;';
+    grpHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isOpen?90:0}deg)">▶</span> ${meta.label} <span style="color:#555;font-weight:400;font-size:9px">(${items.length})</span>`;
+    grpHdr.onclick=()=>{window._planLibOpen[cat]=!window._planLibOpen[cat]; buildLibrary();};
+    el.appendChild(grpHdr);
+    if(isOpen){
+      items.forEach(item=>{
+        const zone = meta.zone;
+        const zc = ZONE_COLORS[zone]||ZONE_COLORS.other;
+        el.appendChild(makeLibItem({id:'lib_'+item.id, sourceId:item.id, label:item.name, w:item.areaW, h:item.areaL, ht:0, zone, note:item.desc||''}, zc));
+      });
+    }
+  }
+
+  // Infrastructure group
+  const isInfraOpen = window._planLibOpen['_infra']||false;
+  const infraHdr = document.createElement('div');
+  infraHdr.style.cssText='font-size:10px;color:#c5a059;padding:6px 6px 4px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(255,255,255,.06);margin-top:2px;user-select:none;';
+  infraHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isInfraOpen?90:0}deg)">▶</span> 🏢 Инфраструктура <span style="color:#555;font-weight:400;font-size:9px">(${infraLib.length})</span>`;
+  infraHdr.onclick=()=>{window._planLibOpen['_infra']=!window._planLibOpen['_infra']; buildLibrary();};
+  el.appendChild(infraHdr);
+  if(isInfraOpen){
+    infraLib.forEach(item=>{
+      const zc=ZONE_COLORS[item.zone]||ZONE_COLORS.other;
+      el.appendChild(makeLibItem(item,zc));
+    });
+  }
+
+  // Presets group (typovye resheniya)
+  if(typeof PRESETS!=='undefined' && PRESETS.length){
+    const isPresOpen = window._planLibOpen['_presets']||false;
+    const presHdr = document.createElement('div');
+    presHdr.style.cssText='font-size:10px;color:#c5a059;padding:6px 6px 4px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(255,255,255,.06);margin-top:2px;user-select:none;';
+    presHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isPresOpen?90:0}deg)">▶</span> ★ Типовые решения <span style="color:#555;font-weight:400;font-size:9px">(${PRESETS.length})</span>`;
+    presHdr.onclick=()=>{window._planLibOpen['_presets']=!window._planLibOpen['_presets']; buildLibrary();};
+    el.appendChild(presHdr);
+    if(isPresOpen){
+      PRESETS.forEach((pr,idx)=>{
+        const pDiv = document.createElement('div');
+        pDiv.className='libItem';
+        pDiv.style.cssText='border-left:3px solid #c5a059;';
+        pDiv.innerHTML=`<div class="liName" style="color:#c5a059">${pr.icon||'★'} ${pr.name}</div><div class="liDim" style="color:#888">${pr.desc||''}</div>`;
+        pDiv.onclick=()=>{
+          if(confirm('Загрузить типовое решение «'+pr.name+'» в калькулятор?\nТекущая конфигурация будет заменена.')){
+            loadPreset(idx);
+            buildLibrary();
+          }
+        };
+        el.appendChild(pDiv);
+      });
+    }
+  }
   // Add custom button
   const addBtn=document.createElement('div');
   addBtn.className='libAddBtn';addBtn.textContent='+ Добавить объект…';
