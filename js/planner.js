@@ -420,6 +420,44 @@ function drawPlan(){
   // Map image
   if(APP.planImg) x.drawImage(APP.planImg,APP.panX,APP.panY,APP.planImgW*APP.zoom,APP.planImgH*APP.zoom);
 
+  // Welcome instructions when canvas is empty (no map, no buildings)
+  if(!APP.planImg && (!APP.planBuildings || APP.planBuildings.length===0)){
+    x.save();
+    const cx=c.width/2, cy=c.height/2;
+    // Title
+    x.fillStyle='rgba(255,255,255,.7)';
+    x.font='bold 18px Inter,sans-serif';x.textAlign='center';x.textBaseline='middle';
+    x.fillText('Добро пожаловать в Планировщик',cx,cy-120);
+    // Instructions
+    x.fillStyle='rgba(255,255,255,.45)';
+    x.font='13px Inter,sans-serif';
+    const lines=[
+      'Для начала работы выполните следующие шаги:',
+      '',
+      '1️⃣  Загрузите карту участка — нажмите кнопку «Карта» и выберите',
+      '     спутниковый снимок или план территории (JPG/PNG)',
+      '',
+      '2️⃣  Установите масштаб — используйте «Линейку» (измерьте',
+      '     известное расстояние на карте) или «GPS» (введите координаты)',
+      '',
+      '3️⃣  Импортируйте границы участка — нажмите «Кадастр» и введите',
+      '     координаты (X Y, GPS или GeoJSON)',
+      '',
+      '4️⃣  Размещайте объекты — перетаскивайте здания из панели слева',
+      '     на план участка. Используйте ←/→ для поворота.',
+      '',
+      '💡  Объекты из калькулятора автоматически появятся в панели слева.',
+      '     Также можно добавить новые из полного каталога.',
+    ];
+    lines.forEach((ln,i)=>{
+      if(ln.startsWith('1️⃣')||ln.startsWith('2️⃣')||ln.startsWith('3️⃣')||ln.startsWith('4️⃣')||ln.startsWith('💡'))
+        x.fillStyle='rgba(255,255,255,.55)';
+      else x.fillStyle='rgba(255,255,255,.35)';
+      x.fillText(ln,cx,cy-65+i*22);
+    });
+    x.restore();
+  }
+
   // Grid
   if(APP.showGrid&&APP.planScale){
     const step=parseFloat(document.getElementById('gridStep').value)||10;

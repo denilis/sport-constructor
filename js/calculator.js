@@ -5,13 +5,14 @@ if(!APP.thumbCache) APP.thumbCache = {};
 if(!APP.localThumbs) APP.localThumbs = {};
 
 // Check which local thumbnails exist (img/thumbs/*.jpg)
+// Mark all as available by default, let onerror handle missing ones
 function checkLocalThumbs(){
   CATALOG.forEach(item => {
     item.options.forEach((opt, oi) => {
       const key = item.id + '_' + oi;
-      const img = new Image();
-      img.onload = () => { APP.localThumbs[key] = true; };
-      img.src = 'img/thumbs/' + key + '.jpg';
+      // Assume local thumb exists — browser will show broken img if not,
+      // but onerror on the rendered <img> will handle fallback
+      APP.localThumbs[key] = true;
     });
   });
 }
@@ -19,13 +20,10 @@ function checkLocalThumbs(){
 function initCalc() {
   CATALOG.forEach(it => { APP.calcState[it.id] = {opts: it.options.map(()=>0)}; });
   checkLocalThumbs();
-  // Small delay to let local thumb checks complete, then render
-  setTimeout(() => {
-    renderAllGrids();
-    addHangar();
-    renderSettings();
-    recalc();
-  }, 300);
+  renderAllGrids();
+  addHangar();
+  renderSettings();
+  recalc();
 }
 
 function switchCTab(cat, btn) {
@@ -83,7 +81,7 @@ function renderCard(item) {
     const cached = APP.thumbCache?.[imgKey];
     const thumbSrc = APP.localThumbs?.[imgKey] ? localThumb : (cached || null);
     const thumbContent = thumbSrc
-      ? `<img src="${thumbSrc}" alt="${opt.n}">`
+      ? `<img src="${thumbSrc}" alt="${opt.n}" onerror="this.parentElement.innerHTML='<div class=\\'thumbGen\\' onclick=\\'genThumb(&quot;${item.id}&quot;,${oi},event)\\'>📷<br>Фото</div>'">`
       : `<div class="thumbGen" onclick="genThumb('${item.id}',${oi},event)">📷<br>Фото</div>`;
     return `<div class="oVarRow${q>0?' active':''}">
       <div class="oVarThumb" id="thumb-${imgKey}" onmouseenter="showThumbFull(this)" onmouseleave="hideThumbFull()">${thumbContent}</div>
