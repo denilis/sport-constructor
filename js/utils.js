@@ -5,6 +5,7 @@
 // ── FORMAT ──
 function fmt(n){return Math.round(n).toLocaleString('ru-RU')+' ₽';}
 function fmt2(n){return n.toLocaleString('ru-RU');}
+function fmtPrice(v){return String(v).replace(/\s/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,' ');}
 
 // ── HAVERSINE ──
 function haversine(a1,o1,a2,o2){

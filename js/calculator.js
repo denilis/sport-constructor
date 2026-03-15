@@ -31,15 +31,17 @@ function initCalc() {
 function switchCTab(cat, btn) {
   document.querySelectorAll('#calcTabs .cTab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  // hide all
   document.querySelectorAll('.cGrid').forEach(g=>{g.classList.remove('show');});
   document.getElementById('tabBuilding').style.display='none';
   document.getElementById('tabSettings').style.display='none';
+  const tp=document.getElementById('tabPresets'); if(tp) tp.style.display='none';
   if(cat==='building'){
     document.getElementById('tabBuilding').style.display='flex';
     renderHangars(); calcABK();
   } else if(cat==='settings'){
-    document.getElementById('tabSettings').style.display='flex';
+    const tse=document.getElementById('tabSettings');tse.style.display='flex';tse.style.flexDirection='column';
+  } else if(cat==='presets'){
+    if(tp){tp.style.display='block'; renderPresets();}
   } else {
     const g=document.getElementById('cg-'+cat);
     if(g) g.classList.add('show');
@@ -488,39 +490,397 @@ function addToHangar(hId,itemId){
 function removeFromHangar(hId,itemId){const h=APP.hangars.find(x=>x.id===hId);if(h.items[itemId]){h.items[itemId].count--;if(h.items[itemId].count<=0)delete h.items[itemId];}renderHangars();recalc();}
 
 // ── SETTINGS / PRICE EDITOR ──
+function mktCell(key,price){
+  const md=typeof MARKET_DATA!=='undefined'&&MARKET_DATA[key];
+  if(!md) return '<td style="color:#555;text-align:right">—</td>';
+  const avg=md.avg;
+  if(!avg) return '<td style="color:#555;text-align:right">—</td>';
+  const diff=price?Math.round((price-avg)/avg*100):0;
+  const clr=diff>15?'#f87171':diff<-15?'#4ade80':'#fff';
+  const arrow=diff>15?'▲':diff<-15?'▼':'';
+  const diffTxt=diff!==0?` <span style="font-size:9px;color:${clr}">${arrow}${diff>0?'+':''}${diff}%</span>`:'';
+  const hasC=md.c&&md.c.length>0;
+  const rid='mr_'+key.replace(/\W/g,'_');
+  let html=`<td style="text-align:right;white-space:nowrap;color:#fff;cursor:${hasC?'pointer':'default'}" ${hasC?`onclick="document.getElementById('${rid}').style.display=document.getElementById('${rid}').style.display==='none'?'table-row':'none'"`:''}>`;
+  html+=`<span style="font-weight:600;font-family:var(--fm)">${fmtPrice(avg)}</span>${diffTxt}`;
+  if(hasC) html+=` <span style="font-size:9px;color:#888">▾${md.c.length}</span>`;
+  html+='</td>';
+  // competitor rows (hidden by default)
+  if(hasC){
+    html+=`</tr><tr id="${rid}" style="display:none"><td colspan="5" style="padding:4px 8px 8px 20px;background:rgba(255,255,255,.03)"><div style="display:flex;flex-wrap:wrap;gap:4px">`;
+    md.c.forEach(c=>{
+      const pTxt=c.p?fmtPrice(c.p):(c.t||'—');
+      html+=`<span style="font-size:10px;color:#ccc;background:rgba(255,255,255,.06);padding:2px 6px;border-radius:3px;white-space:nowrap">${c.n}: <b style="color:#e5c585">${pTxt}</b></span>`;
+    });
+    html+='</div></td>';
+  }
+  return html;
+}
+if(!window._settingsFilter) window._settingsFilter='all';
 function renderSettings() {
   const el=document.getElementById('tabSettings');
   if(!el) return;
   const cats=['racket','team','athletics','fun','glamping','wellness','infra','prep'];
   const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес / СПА',infra:'Инфраструктура',prep:'Благоустройство'};
-  let html=`<div style="overflow-y:auto;flex:1;"><table class="priceTable"><colgroup><col style="width:18%"><col style="width:15%"><col style="width:37%"><col style="width:22%"><col style="width:8%"></colgroup><thead><tr><th>Объект</th><th>Вариант</th><th>Комплектация</th><th style="text-align:right">Цена</th><th>Ед.</th></tr></thead><tbody>`;
+  const f=window._settingsFilter;
+  const filteredCats=f==='all'?cats:cats.filter(c=>c===f);
+  // Filter bar
+  let html='<div style="display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--bd);flex-shrink:0">';
+  html+=`<button onclick="window._settingsFilter='all';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${f==='all'?'var(--gold)':'var(--bd)'};background:${f==='all'?'rgba(197,160,89,.15)':'transparent'};color:${f==='all'?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">Все</button>`;
   cats.forEach(cat=>{
-    html+=`<tr><td colspan="5" class="priceCat">${catNames[cat]||cat}</td></tr>`;
+    const active=f===cat;
+    html+=`<button onclick="window._settingsFilter='${cat}';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${active?'var(--gold)':'var(--bd)'};background:${active?'rgba(197,160,89,.15)':'transparent'};color:${active?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">${catNames[cat]}</button>`;
+  });
+  html+=`<div style="flex:1"></div><button onclick="applyMarketPrices('${f}')" style="padding:5px 14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Рыночные цены${f!=='all'?' ('+catNames[f]+')':' (все)'}</button>`;
+  html+='</div>';
+  // Table
+  html+=`<div style="overflow-y:auto;flex:1;"><table class="priceTable"><colgroup><col style="width:15%"><col style="width:12%"><col style="width:28%"><col style="width:17%"><col style="width:6%"><col style="width:22%"></colgroup><thead><tr><th style="color:#fff">Объект</th><th style="color:#fff">Вариант</th><th style="color:#fff">Комплектация</th><th style="text-align:right;color:#fff">Наша цена</th><th style="color:#fff">Ед.</th><th style="text-align:right;color:#fff">Рынок (средн.) ▾</th></tr></thead><tbody>`;
+  filteredCats.forEach(cat=>{
+    html+=`<tr><td colspan="6" class="priceCat">${catNames[cat]||cat}</td></tr>`;
     CATALOG.filter(i=>i.cat===cat).forEach(item=>{
       item.options.forEach((opt,oi)=>{
-        const specs = opt.specs ? `<div class="priceSpecs"><span>${opt.specs.join(', ')}</span></div>` : '';
+        const key=item.id+'_'+oi;
+        const specs = opt.specs ? `<div style="font-size:10px;color:#ccc;line-height:1.4;margin-top:2px">${opt.specs.join(', ')}</div>` : '';
         html+=`<tr>
-          <td style="color:var(--tx)">${item.name}</td>
-          <td style="color:var(--tx3);white-space:nowrap;">${opt.n}</td>
-          <td>${specs}</td>
-          <td style="text-align:right;white-space:nowrap;"><input class="priceInput" type="number" value="${opt.p}" min="0" step="1000" onchange="updatePrice('${item.id}',${oi},this.value)" onblur="recalc()"></td>
-          <td style="color:var(--tx3);white-space:nowrap;">${item.unit}</td>
+          <td style="font-weight:600;color:#fff">${item.name}</td>
+          <td style="white-space:nowrap;color:#fff">${opt.n}</td>
+          <td style="color:#fff">${specs}</td>
+          <td style="text-align:right;white-space:nowrap;"><input class="priceInput" type="text" value="${fmtPrice(opt.p)}" onfocus="this.value=this.value.replace(/\\s/g,'')" onblur="this.value=fmtPrice(this.value);updatePrice('${item.id}',${oi},this.value);recalc()"></td>
+          <td style="white-space:nowrap;color:#fff">${item.unit}</td>
+          ${mktCell(key,opt.p)}
         </tr>`;
       });
     });
-    if(cat==='infra'){
-      html+=`<tr><td colspan="5" class="priceCat">Типы зданий (₽/м²)</td></tr>`;
+    if(filteredCats.includes('infra')&&cat==='infra'){
+      html+=`<tr><td colspan="6" class="priceCat">Типы зданий (₽/м²)</td></tr>`;
+      const bldKeys=['tent_cold','tent_warm','air','lstk','wood','concrete'];
       BUILDING_TYPES.forEach((bt,bi)=>{
-        html+=`<tr><td style="color:var(--tx)">${bt.name}</td><td style="color:var(--tx3)">за м²</td><td></td>
-          <td style="text-align:right"><input class="priceInput" type="number" value="${bt.price}" min="0" step="500" onchange="BUILDING_TYPES[${bi}].price=+this.value;recalc()"></td>
-          <td style="color:var(--tx3)">₽/м²</td></tr>`;
+        const bKey='bld_'+bldKeys[bi];
+        html+=`<tr><td style="font-weight:600;color:#fff">${bt.name}</td><td style="color:#fff">за м²</td><td></td>
+          <td style="text-align:right"><input class="priceInput" type="text" value="${fmtPrice(bt.price)}" onfocus="this.value=this.value.replace(/\\s/g,'')" onblur="this.value=fmtPrice(this.value);BUILDING_TYPES[${bi}].price=+this.value.replace(/\\s/g,'');recalc()"></td>
+          <td style="color:#fff">₽/м²</td>
+          ${mktCell(bKey,bt.price)}
+        </tr>`;
       });
     }
   });
   html+='</tbody></table></div>';
   el.innerHTML=html;
 }
-function updatePrice(id,oi,val){const item=CATALOG.find(i=>i.id===id);if(item)item.options[oi].p=+val;}
+function applyMarketPrices(scope){
+  const cats=scope==='all'?['racket','team','athletics','fun','glamping','wellness','infra','prep']:[scope];
+  const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес / СПА',infra:'Инфраструктура',prep:'Благоустройство'};
+  const label=scope==='all'?'ВСЕ категории':catNames[scope]||scope;
+  if(!confirm('Заменить наши цены на средние рыночные?\nБлок: '+label+'\n\nЦены будут изменены только там, где есть данные рынка.')) return;
+  let changed=0;
+  cats.forEach(cat=>{
+    CATALOG.filter(i=>i.cat===cat).forEach(item=>{
+      item.options.forEach((opt,oi)=>{
+        const md=MARKET_DATA[item.id+'_'+oi];
+        if(md&&md.avg){opt.p=md.avg;changed++;}
+      });
+    });
+  });
+  if(scope==='all'||scope==='infra'){
+    const bldKeys=['tent_cold','tent_warm','air','lstk','wood','concrete'];
+    BUILDING_TYPES.forEach((bt,bi)=>{
+      const md=MARKET_DATA['bld_'+bldKeys[bi]];
+      if(md&&md.avg){bt.price=md.avg;changed++;}
+    });
+  }
+  renderSettings();renderAllGrids();recalc();
+  alert('Обновлено '+changed+' позиций на рыночные цены.');
+}
+function updatePrice(id,oi,val){const item=CATALOG.find(i=>i.id===id);if(item)item.options[oi].p=+String(val).replace(/\s/g,'');}
 
 function resetCalc(){if(!confirm('Сбросить все выбранные объекты?'))return;APP.hangars=[];initCalc();}
 function goToPlanner(){switchModule('plan',document.querySelectorAll('.mTab')[1]);buildLibrary();}
+
+// ═══════════════════════════════════════════════════════
+// PRESETS — типовые сценарии
+// ═══════════════════════════════════════════════════════
+const PRESETS = [
+  {
+    id:'padel_club_6',
+    name:'Падел-клуб 6 кортов',
+    icon:'🎾',
+    desc:'6 крытых падел-кортов + АБК с полной инфраструктурой',
+    tags:['Крытый','6 кортов','АБК'],
+    items:[
+      {id:'padel_std',oi:1,qty:6},
+      {id:'locker_m',oi:1,qty:50},{id:'locker_f',oi:1,qty:50},
+      {id:'wc',oi:0,qty:40},{id:'heating',oi:0,qty:1},
+      {id:'coach_room',oi:0,qty:20},{id:'reception',oi:0,qty:30},
+      {id:'cafe',oi:0,qty:50},{id:'light',oi:1,qty:6}
+    ],
+    buildings:[{type:3,area:2400}] // ЛСТК
+  },
+  {
+    id:'padel_tennis_mix',
+    name:'Падел + Теннис клуб',
+    icon:'🏸',
+    desc:'5 падел-кортов + 2 теннисных корта под одной крышей + АБК',
+    tags:['Крытый','5 падел','2 теннис','АБК'],
+    items:[
+      {id:'padel_std',oi:1,qty:5},
+      {id:'tennis_hard',oi:1,qty:2},
+      {id:'locker_m',oi:1,qty:60},{id:'locker_f',oi:1,qty:60},
+      {id:'wc',oi:0,qty:50},{id:'heating',oi:0,qty:1},
+      {id:'coach_room',oi:0,qty:25},{id:'reception',oi:0,qty:40},
+      {id:'cafe',oi:0,qty:60},{id:'light',oi:1,qty:7}
+    ],
+    buildings:[{type:3,area:3500}]
+  },
+  {
+    id:'ice_football',
+    name:'Ледовая арена + Футбол',
+    icon:'⛸',
+    desc:'Ледовая арена олимпийский размер + футбольное поле 11×11 + АБК',
+    tags:['Крытый','Лёд','Футбол','АБК'],
+    items:[
+      {id:'ice',oi:0,qty:1},
+      {id:'football_11',oi:1,qty:1},
+      {id:'locker_m',oi:1,qty:100},{id:'locker_f',oi:1,qty:100},
+      {id:'wc',oi:0,qty:80},{id:'heating',oi:0,qty:1},
+      {id:'coach_room',oi:0,qty:40},{id:'reception',oi:0,qty:50},
+      {id:'cafe',oi:0,qty:80},{id:'tribune',oi:1,qty:4},
+      {id:'light',oi:1,qty:1},{id:'storage',oi:0,qty:50}
+    ],
+    buildings:[{type:3,area:3000}]
+  },
+  {
+    id:'ice_padel',
+    name:'Ледовая арена + Падел',
+    icon:'🏒',
+    desc:'Ледовая арена + 5 падел-кортов + АБК',
+    tags:['Крытый','Лёд','5 падел','АБК'],
+    items:[
+      {id:'ice',oi:0,qty:1},
+      {id:'padel_std',oi:1,qty:5},
+      {id:'locker_m',oi:1,qty:80},{id:'locker_f',oi:1,qty:80},
+      {id:'wc',oi:0,qty:60},{id:'heating',oi:0,qty:1},
+      {id:'coach_room',oi:0,qty:30},{id:'reception',oi:0,qty:40},
+      {id:'cafe',oi:0,qty:70},{id:'tribune',oi:1,qty:2},
+      {id:'light',oi:1,qty:5},{id:'storage',oi:0,qty:40}
+    ],
+    buildings:[{type:3,area:3200}]
+  },
+  {
+    id:'resort_mega',
+    name:'Спортивный курорт «Всё включено»',
+    icon:'🏖',
+    desc:'Падел (5) + Теннис (2) + Глэмпинг (16 домов) + Баня + Ресторан + Батуты',
+    tags:['Курорт','Падел','Теннис','Глэмпинг','Велнес','Батуты'],
+    items:[
+      {id:'padel_std',oi:1,qty:5},
+      {id:'tennis_hard',oi:1,qty:2},
+      // Глэмпинг: 10 домов на 4 чел
+      {id:'glamp_aframe',oi:1,qty:5},{id:'glamp_modular',oi:1,qty:5},
+      // 5 домов на 6-8 чел
+      {id:'glamp_aframe',oi:2,qty:3},{id:'glamp_modular',oi:2,qty:2},
+      // 1 большой купол
+      {id:'glamp_dome_m',oi:1,qty:1},
+      // Велнес
+      {id:'banya',oi:1,qty:1},{id:'sauna',oi:1,qty:1},{id:'hammam',oi:1,qty:1},
+      // Батутный центр
+      {id:'trampoline',oi:1,qty:1},
+      // Инфра
+      {id:'locker_m',oi:1,qty:80},{id:'locker_f',oi:1,qty:80},
+      {id:'wc',oi:0,qty:60},{id:'heating',oi:0,qty:1},
+      {id:'reception',oi:0,qty:60},{id:'cafe',oi:0,qty:150},
+      {id:'coach_room',oi:0,qty:30},{id:'light',oi:1,qty:7},
+      {id:'storage',oi:0,qty:40}
+    ],
+    buildings:[{type:3,area:2000},{type:4,area:600}] // ЛСТК + Дерево
+  },
+  {
+    id:'kids_sport',
+    name:'Детский спортивный центр',
+    icon:'🧒',
+    desc:'Батуты + Скалодром + Универсальная площадка + Бассейн детский',
+    tags:['Детский','Батуты','Скалодром','Бассейн'],
+    items:[
+      {id:'trampoline',oi:1,qty:1},
+      {id:'climb',oi:0,qty:1},{id:'climb',oi:1,qty:1},
+      {id:'universal',oi:2,qty:1},
+      {id:'pool_indoor',oi:2,qty:1},
+      {id:'locker_m',oi:0,qty:40},{id:'locker_f',oi:0,qty:40},
+      {id:'wc',oi:0,qty:40},{id:'reception',oi:0,qty:30},
+      {id:'cafe',oi:0,qty:40},{id:'heating',oi:0,qty:1}
+    ],
+    buildings:[{type:3,area:2000}]
+  },
+  {
+    id:'school_stadium',
+    name:'Школьный стадион',
+    icon:'🏫',
+    desc:'Беговая 200м + Футбол 7×7 + Баскетбол + Воркаут + Трибуны',
+    tags:['Открытый','Школа','Беговая','Футбол'],
+    items:[
+      {id:'run_200',oi:0,qty:1},
+      {id:'football_7',oi:0,qty:1},
+      {id:'basketball',oi:0,qty:1},
+      {id:'volleyball',oi:1,qty:1},
+      {id:'workout_m',oi:0,qty:1},
+      {id:'tribune',oi:0,qty:4},
+      {id:'light',oi:0,qty:1},
+      {id:'fencing',oi:0,qty:400},
+      {id:'paving',oi:1,qty:500},
+      {id:'greenery',oi:0,qty:2000}
+    ],
+    buildings:[]
+  },
+  {
+    id:'wellness_spa',
+    name:'Велнес-центр «СПА»',
+    icon:'♨',
+    desc:'Бассейн 25м + Хамам + Сауна + Соляная комната + Баня',
+    tags:['Крытый','Бассейн','Хамам','Сауна','Баня'],
+    items:[
+      {id:'pool_indoor',oi:0,qty:1},
+      {id:'pool_indoor',oi:1,qty:1},
+      {id:'hammam',oi:1,qty:1},{id:'sauna',oi:1,qty:1},
+      {id:'salt_room',oi:0,qty:1},{id:'banya',oi:1,qty:1},
+      {id:'locker_m',oi:1,qty:60},{id:'locker_f',oi:1,qty:60},
+      {id:'wc',oi:0,qty:50},{id:'reception',oi:0,qty:40},
+      {id:'cafe',oi:0,qty:60},{id:'heating',oi:0,qty:1}
+    ],
+    buildings:[{type:5,area:1500}] // Монолит
+  },
+  {
+    id:'glamping_resort',
+    name:'Глэмпинг-парк на 20 домов',
+    icon:'🏕',
+    desc:'А-фреймы + Модульные + Купола + Сафари-тенты + Баня',
+    tags:['Глэмпинг','20 домов','Баня','Природа'],
+    items:[
+      {id:'glamp_aframe',oi:1,qty:6},
+      {id:'glamp_modular',oi:1,qty:6},
+      {id:'glamp_dome_s',oi:1,qty:4},
+      {id:'glamp_safari',oi:1,qty:4},
+      {id:'banya',oi:1,qty:1},{id:'sauna',oi:0,qty:1},
+      {id:'reception',oi:0,qty:30},{id:'cafe',oi:0,qty:80},
+      {id:'wc',oi:0,qty:30},{id:'light',oi:0,qty:1},
+      {id:'paving',oi:1,qty:800},{id:'greenery',oi:1,qty:3000},
+      {id:'fencing',oi:0,qty:600},{id:'drainage',oi:0,qty:200}
+    ],
+    buildings:[]
+  },
+  {
+    id:'multisport',
+    name:'Мультиспорт комплекс',
+    icon:'🏅',
+    desc:'Беговая 400м + Футбол 11×11 + Баскетбол + Волейбол + Воркаут + Трибуны',
+    tags:['Открытый','Стадион','Футбол','Лёгкая атлетика'],
+    items:[
+      {id:'run_400',oi:0,qty:1},
+      {id:'football_11',oi:1,qty:1},
+      {id:'basketball',oi:0,qty:2},
+      {id:'volleyball',oi:1,qty:2},
+      {id:'workout_l',oi:0,qty:1},
+      {id:'tribune',oi:1,qty:6},
+      {id:'light',oi:1,qty:1},
+      {id:'locker_m',oi:1,qty:100},{id:'locker_f',oi:1,qty:100},
+      {id:'wc',oi:0,qty:80},{id:'reception',oi:0,qty:50},
+      {id:'cafe',oi:0,qty:100},{id:'coach_room',oi:0,qty:40},
+      {id:'heating',oi:0,qty:1},{id:'storage',oi:0,qty:60}
+    ],
+    buildings:[{type:3,area:1500}]
+  }
+];
+
+function presetTotal(preset){
+  let sum=0;
+  preset.items.forEach(pi=>{
+    const item=CATALOG.find(c=>c.id===pi.id);
+    if(item&&item.options[pi.oi]) sum+=item.options[pi.oi].p*pi.qty;
+  });
+  (preset.buildings||[]).forEach(b=>{
+    const bt=BUILDING_TYPES[b.type];
+    if(bt) sum+=bt.price*b.area;
+  });
+  return sum;
+}
+
+function renderPresets(){
+  const el=document.getElementById('tabPresets');
+  if(!el) return;
+  let html='<div style="padding:20px"><h3 style="color:#fff;font-size:16px;margin-bottom:4px">Типовые проекты</h3><p style="color:#aaa;font-size:12px;margin-bottom:16px">Выберите шаблон — объекты загрузятся в калькулятор. Потом можно менять количество и состав.</p>';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">';
+  PRESETS.forEach((p,pi)=>{
+    const total=presetTotal(p);
+    const itemCount=p.items.length;
+    const tags=p.tags.map(t=>`<span style="font-size:9px;color:#fff;background:rgba(255,255,255,.1);padding:2px 6px;border-radius:3px">${t}</span>`).join('');
+    // Item summary (group by category)
+    const summary=[];
+    const seen={};
+    p.items.forEach(pi2=>{
+      const item=CATALOG.find(c=>c.id===pi2.id);
+      if(!item) return;
+      const key=item.id+'_'+pi2.oi;
+      if(seen[key]){seen[key].qty+=pi2.qty;return;}
+      seen[key]={name:item.name,opt:item.options[pi2.oi]?.n||'',qty:pi2.qty,unit:item.unit,price:item.options[pi2.oi]?.p||0};
+      summary.push(seen[key]);
+    });
+    const rows=summary.map(s=>{
+      const cost=s.price*s.qty;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span style="font-size:11px;color:#ccc">${s.name} <span style="color:#888">${s.opt}</span> ×${s.qty}</span>
+        <span style="font-size:11px;color:#e5c585;font-family:var(--fm)">${fmtPrice(cost)} ₽</span>
+      </div>`;
+    }).join('');
+    const bldRows=(p.buildings||[]).map(b=>{
+      const bt=BUILDING_TYPES[b.type];
+      if(!bt) return '';
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span style="font-size:11px;color:#ccc">Здание: ${bt.name} ${fmtPrice(b.area)} м²</span>
+        <span style="font-size:11px;color:#e5c585;font-family:var(--fm)">${fmtPrice(bt.price*b.area)} ₽</span>
+      </div>`;
+    }).join('');
+
+    html+=`<div style="background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s" onmouseenter="this.style.borderColor='var(--gold)'" onmouseleave="this.style.borderColor='var(--bd)'">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="font-size:28px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border-radius:10px;flex-shrink:0">${p.icon}</div>
+        <div><h4 style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px">${p.name}</h4><p style="font-size:11px;color:#aaa;line-height:1.4">${p.desc}</p></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${tags}</div>
+      <div id="presetDetail_${pi}" style="display:none;max-height:200px;overflow-y:auto;background:rgba(0,0,0,.2);border-radius:6px;padding:8px">
+        ${rows}${bldRows}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto">
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#e5c585;font-family:var(--fm)">${fmtPrice(total)} <span style="font-size:12px;color:#aaa">₽</span></div>
+          <div style="font-size:10px;color:#888">${itemCount} позиций</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="document.getElementById('presetDetail_${pi}').style.display=document.getElementById('presetDetail_${pi}').style.display==='none'?'block':'none'" style="padding:6px 12px;background:transparent;border:1px solid var(--bd2);color:#aaa;border-radius:6px;font-size:11px;cursor:pointer">Состав</button>
+          <button onclick="loadPreset(${pi})" style="padding:6px 16px;background:linear-gradient(135deg,#c5a059,#e5c585);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Загрузить</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  html+='</div></div>';
+  el.innerHTML=html;
+}
+
+function loadPreset(idx){
+  const preset=PRESETS[idx];
+  if(!preset) return;
+  if(!confirm('Загрузить шаблон «'+preset.name+'»?\nТекущий выбор будет сброшен.')) return;
+  // Reset all
+  CATALOG.forEach(it=>{APP.calcState[it.id]={opts:it.options.map(()=>0)};});
+  APP.hangars=[];
+  // Apply preset items
+  preset.items.forEach(pi=>{
+    const s=APP.calcState[pi.id];
+    if(s) s.opts[pi.oi]=(s.opts[pi.oi]||0)+pi.qty;
+  });
+  // Re-render
+  renderAllGrids();
+  renderSettings();
+  recalc();
+  updateCalcBadge();
+  // Switch to first category tab
+  const firstTab=document.querySelectorAll('#calcTabs .cTab')[1];
+  if(firstTab) switchCTab('racket',firstTab);
+}
