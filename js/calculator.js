@@ -1241,25 +1241,35 @@ function renderSettings() {
   if(!el) return;
   const cats=['racket','team','athletics','fun','glamping','wellness','infra','prep'];
   const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес / СПА',infra:'Инфраструктура',prep:'Благоустройство'};
-  const f=window._settingsFilter;
+  // Multi-select filter
+  if(!window._settingsFilterSet) window._settingsFilterSet = new Set();
+  const fSet = window._settingsFilterSet;
   const baseCats = APP.extendedMode ? cats : cats.filter(c => !EXTENDED_CATS.has(c));
-  const filteredCats=f==='all'?baseCats:baseCats.filter(c=>c===f);
-  // Filter bar — respect extended mode
+  const filteredCats = fSet.size === 0 ? baseCats : baseCats.filter(c => fSet.has(c));
   const visibleCats = APP.extendedMode ? cats : cats.filter(c => !EXTENDED_CATS.has(c));
+  // Collapsed sections state
+  if(!window._priceCollapsed) window._priceCollapsed = {};
   let html='<div style="display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--bd);flex-shrink:0">';
-  html+=`<button onclick="window._settingsFilter='all';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${f==='all'?'var(--gold)':'var(--bd)'};background:${f==='all'?'rgba(197,160,89,.15)':'transparent'};color:${f==='all'?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">Все</button>`;
+  const allActive = fSet.size === 0;
+  html+=`<button onclick="window._settingsFilterSet.clear();renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${allActive?'var(--gold)':'var(--bd)'};background:${allActive?'rgba(197,160,89,.15)':'transparent'};color:${allActive?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">Все</button>`;
   visibleCats.forEach(cat=>{
-    const active=f===cat;
-    html+=`<button onclick="window._settingsFilter='${cat}';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${active?'var(--gold)':'var(--bd)'};background:${active?'rgba(197,160,89,.15)':'transparent'};color:${active?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">${catNames[cat]}</button>`;
+    const active = fSet.has(cat);
+    html+=`<button onclick="(function(){var s=window._settingsFilterSet;s.has('${cat}')?s.delete('${cat}'):s.add('${cat}');renderSettings()})()" style="padding:4px 10px;border-radius:4px;border:1px solid ${active?'var(--gold)':'var(--bd)'};background:${active?'rgba(197,160,89,.15)':'transparent'};color:${active?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">${catNames[cat]}</button>`;
   });
   html+=`<div style="flex:1"></div>`;
   html+=`<button onclick="openResearchImport()" style="padding:5px 14px;background:linear-gradient(135deg,#7c3aed,#9b6dff);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-right:6px">Импорт исследования</button>`;
-  html+=`<button onclick="applyMarketPrices('${f}')" style="padding:5px 14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Рыночные цены${f!=='all'?' ('+catNames[f]+')':' (все)'}</button>`;
+  const mktScope = fSet.size===0 ? 'all' : Array.from(fSet).join(',');
+  const mktLabel = fSet.size===0 ? ' (все)' : ' ('+Array.from(fSet).map(c=>catNames[c]).join(', ')+')';
+  html+=`<button onclick="applyMarketPrices('${mktScope}')" style="padding:5px 14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Рыночные цены${mktLabel}</button>`;
   html+='</div>';
   // Table
   html+=`<div style="overflow-y:auto;flex:1;"><table class="priceTable"><colgroup><col style="width:15%"><col style="width:12%"><col style="width:28%"><col style="width:17%"><col style="width:6%"><col style="width:22%"></colgroup><thead><tr><th style="color:#fff">Объект</th><th style="color:#fff">Вариант</th><th style="color:#fff">Комплектация</th><th style="text-align:right;color:#fff">Наша цена</th><th style="color:#fff">Ед.</th><th style="text-align:right;color:#fff">Рынок (средн.) ▾</th></tr></thead><tbody>`;
   filteredCats.forEach(cat=>{
-    html+=`<tr><td colspan="6" class="priceCat">${catNames[cat]||cat}</td></tr>`;
+    const collapsed = window._priceCollapsed[cat] || false;
+    const arrow = collapsed ? '▶' : '▼';
+    const itemCount = CATALOG.filter(i=>i.cat===cat).reduce((s,i)=>s+i.options.length, 0);
+    html+=`<tr onclick="window._priceCollapsed['${cat}']=!window._priceCollapsed['${cat}'];renderSettings()" style="cursor:pointer;user-select:none"><td colspan="6" class="priceCat"><span style="display:inline-block;width:16px;font-size:10px;color:var(--cyan)">${arrow}</span>${catNames[cat]||cat} <span style="color:#555;font-weight:400;font-size:11px">(${itemCount})</span></td></tr>`;
+    if(!collapsed){
     CATALOG.filter(i=>i.cat===cat).forEach(item=>{
       item.options.forEach((opt,oi)=>{
         const key=item.id+'_'+oi;
@@ -1274,7 +1284,8 @@ function renderSettings() {
         </tr>`;
       });
     });
-    if(filteredCats.includes('infra')&&cat==='infra'){
+    }
+    if(filteredCats.includes('infra')&&cat==='infra'&&!collapsed){
       html+=`<tr><td colspan="6" class="priceCat">Типы зданий (₽/м²)</td></tr>`;
       const bldKeys=['tent_cold','tent_warm','air','lstk','wood','concrete'];
       BUILDING_TYPES.forEach((bt,bi)=>{
@@ -1291,9 +1302,10 @@ function renderSettings() {
   el.innerHTML=html;
 }
 function applyMarketPrices(scope){
-  const cats=scope==='all'?['racket','team','athletics','fun','glamping','wellness','infra','prep']:[scope];
+  const allCats=['racket','team','athletics','fun','glamping','wellness','infra','prep'];
+  const cats=scope==='all'?allCats:scope.split(',').filter(c=>allCats.includes(c));
   const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес / СПА',infra:'Инфраструктура',prep:'Благоустройство'};
-  const label=scope==='all'?'ВСЕ категории':catNames[scope]||scope;
+  const label=scope==='all'?'ВСЕ категории':cats.map(c=>catNames[c]).join(', ');
   if(!confirm('Заменить наши цены на средние рыночные?\nБлок: '+label+'\n\nЦены будут изменены только там, где есть данные рынка.')) return;
   let changed=0;
   cats.forEach(cat=>{
@@ -1304,7 +1316,7 @@ function applyMarketPrices(scope){
       });
     });
   });
-  if(scope==='all'||scope==='infra'){
+  if(scope==='all'||cats.includes('infra')){
     const bldKeys=['tent_cold','tent_warm','air','lstk','wood','concrete'];
     BUILDING_TYPES.forEach((bt,bi)=>{
       const md=MARKET_DATA['bld_'+bldKeys[bi]];
