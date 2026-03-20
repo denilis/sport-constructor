@@ -2,8 +2,12 @@
 // API KEYS — loaded from js/keys.js (gitignored)
 // Fallback to empty strings if keys.js not loaded
 // ═══════════════════════════════════════════════════════
-if(typeof KIE_API_KEY === 'undefined') var KIE_API_KEY = '';
-if(typeof CLAUDE_API_KEY === 'undefined') var CLAUDE_API_KEY = '';
+if(typeof KIE_API_KEY === 'undefined') var KIE_API_KEY = localStorage.getItem('kie_api_key') || '';
+if(typeof CLAUDE_API_KEY === 'undefined') var CLAUDE_API_KEY = localStorage.getItem('claude_api_key') || '';
+
+// Helper: get active Claude key (keys.js → localStorage)
+function getClaudeKey(){ return CLAUDE_API_KEY || localStorage.getItem('claude_api_key') || ''; }
+function setClaudeKey(k){ localStorage.setItem('claude_api_key', k); CLAUDE_API_KEY = k; }
 
 // ═══════════════════════════════════════════════════════
 // REVENUE MODELS — per item type

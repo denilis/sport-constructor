@@ -217,10 +217,26 @@ ${CATALOG.filter(i=>i.areaW>0&&i.areaL>0).map(i=>`- ${i.id}: ${i.name}: ${i.area
 
 Отвечай кратко, по-русски. Задавай уточняющие вопросы если чего-то не хватает.`;
 
+  // Проверить API-ключ
+  const apiKey = getClaudeKey();
+  if(!apiKey) {
+    hideAITyping();
+    AIW.busy = false;
+    document.getElementById('aiWizSend').disabled = false;
+    const keyInput = prompt('Введите API-ключ Claude (Anthropic) для работы НейроМозга.\nКлюч сохранится в браузере.');
+    if(keyInput && keyInput.trim()) {
+      setClaudeKey(keyInput.trim());
+      addAIMessage('bot','✅ Ключ сохранён. Отправьте сообщение ещё раз.');
+    } else {
+      addAIMessage('bot','⚠️ Для работы НейроМозга нужен API-ключ Claude. Получите на console.anthropic.com');
+    }
+    return;
+  }
+
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:3000,system:systemPrompt,messages:convHistory})
     });
     const data = await res.json();

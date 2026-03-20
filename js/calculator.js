@@ -766,12 +766,13 @@ function applyAbkAutoCalc(abkId) {
   const result = abkAutoCalcRooms();
   if(!result) return;
 
-  // Определяем режим: если пользователь уже задал размеры вручную и они отличаются
-  // от рекомендованных — режим B (масштабирование под фиксированный АБК)
+  // Определяем режим:
+  // A) Нет фиксированного размера → подгоняем АБК под набор помещений
+  // B) Пользователь задал свой размер АБК → масштабируем помещения пропорционально
   const userW = h.w, userH = h.h, userFloors = h.floors || 1;
-  const userArea = userW * userH * userFloors;
-  const recArea = result.totalArea;
-  const isFixedSize = h.layout && h.layout.length > 0; // уже были комнаты = пользователь задавал размер
+  // Режим B: размеры отличаются от рекомендованных ИЛИ уже были комнаты (повторное применение)
+  const sizesDiffer = Math.abs(userW - result.recW) > 1 || Math.abs(userH - result.recH) > 1;
+  const isFixedSize = sizesDiffer || (h.layout && h.layout.length > 0 && (userW !== result.recW || userH !== result.recH));
 
   // Режим A: подгоняем АБК под комнаты
   if(!isFixedSize) {
@@ -779,9 +780,7 @@ function applyAbkAutoCalc(abkId) {
     h.h = result.recH;
     h.floors = result.recFloors;
   }
-  // Режим B: масштабируем комнаты под АБК
-  // scaleFactor > 1 = АБК больше → увеличиваем комнаты
-  // scaleFactor < 1 = АБК меньше → уменьшаем (но не ниже минимумов)
+  // Режим B: масштабируем комнаты под АБК (и вверх, и вниз)
 
   const wo = h.wallOffset || 1;
   const corridorW = 2; // ширина коридора в метрах
@@ -804,26 +803,30 @@ function applyAbkAutoCalc(abkId) {
     }
   });
 
-  // Масштабирование комнат под доступное пространство
+  // Масштабирование комнат под доступное пространство (режим B)
   if(isFixedSize) {
-    // Рассчитать высоту рядов (без коридора и стен)
     const rowH = (usableH - corridorW) / 2;
-    // Распределить комнаты по 2 рядам для оценки ширины
-    const sorted = [...roomList].sort((a,b) => b.area - a.area);
-    let rw1 = 0, rw2 = 0, row1 = [], row2 = [];
-    sorted.forEach(r => {
-      if(rw1 <= rw2) { row1.push(r); rw1 += r.w + 0.5; }
-      else { row2.push(r); rw2 += r.w + 0.5; }
-    });
-    const maxRowW = Math.max(rw1, rw2);
     const stairReserve = (floors >= 2 ? 4 : 0);
     const availRowW = usableW - stairReserve;
-    // Масштабировать ширины так, чтобы максимальный ряд вписался
-    if(maxRowW > 0) {
+
+    // Распределить комнаты по 2 рядам для оценки суммарной ширины
+    const sorted = [...roomList].sort((a,b) => b.area - a.area);
+    let rw1 = 0, rw2 = 0;
+    sorted.forEach(r => {
+      const gap = 0.5;
+      if(rw1 <= rw2) rw1 += r.w + gap;
+      else rw2 += r.w + gap;
+    });
+    const maxRowW = Math.max(rw1, rw2);
+    const maxRoomH = Math.max(...roomList.map(r => r.h));
+
+    if(maxRowW > 0 && maxRoomH > 0) {
       const wScale = availRowW / maxRowW;
-      const hScale = rowH / Math.max(...roomList.map(r => r.h));
+      const hScale = rowH / maxRoomH;
       const scale = Math.min(wScale, hScale);
-      if(scale !== 1 && scale > 0.3) {
+      // Масштабируем и вверх (АБК больше → увеличиваем), и вниз (АБК меньше → уменьшаем)
+      // Ограничение: не меньше 0.3 (чтобы комнаты не стали < 2м) и не больше 3.0
+      if(Math.abs(scale - 1) > 0.05 && scale > 0.3 && scale < 3.0) {
         roomList.forEach(r => {
           r.w = Math.max(2, Math.round(r.w * scale * 10) / 10);
           r.h = Math.max(2, Math.min(rowH, Math.round(r.h * scale * 10) / 10));
@@ -1352,8 +1355,8 @@ function loadResearchFile(inp){
 }
 
 async function analyzeResearch(){
-  const key = CLAUDE_API_KEY;
-  if(!key){alert('API-ключ Claude не задан');return;}
+  const key = getClaudeKey();
+  if(!key){alert('API-ключ Claude не задан. Введите в НейроМозг (вкладка AI).');return;}
   const raw = document.getElementById('researchRaw').value.trim();
   if(!raw){alert('Вставьте данные исследования');return;}
 

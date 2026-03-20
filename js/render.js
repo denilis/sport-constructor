@@ -535,7 +535,7 @@ function toggleSelectImage(promptId, idx, el){
 
 // ── CLAUDE AI (PLANNER) ──
 async function runAI(){
-  const key=CLAUDE_API_KEY;
+  const key=getClaudeKey();
   if(!key){alert('API-ключ Claude не задан');return;}
   if(!APP.planBuildings.length){document.getElementById('aiOut').value='Нет объектов.';return;}
   const out=document.getElementById('aiOut');
@@ -578,7 +578,7 @@ ${desc}
 
 // ── CLAUDE AI (RENDER PAGE) ──
 async function runRenderAI(){
-  const key=CLAUDE_API_KEY;
+  const key=getClaudeKey();
   if(!key){alert('API-ключ Claude не задан');return;}
   const out=document.getElementById('renderAIOut');
   out.value='Запрос…';
