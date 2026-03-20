@@ -223,13 +223,7 @@ ${CATALOG.filter(i=>i.areaW>0&&i.areaL>0).map(i=>`- ${i.id}: ${i.name}: ${i.area
     hideAITyping();
     AIW.busy = false;
     document.getElementById('aiWizSend').disabled = false;
-    const keyInput = prompt('Введите API-ключ Claude (Anthropic) для работы НейроМозга.\nКлюч сохранится в браузере.');
-    if(keyInput && keyInput.trim()) {
-      setClaudeKey(keyInput.trim());
-      addAIMessage('bot','✅ Ключ сохранён. Отправьте сообщение ещё раз.');
-    } else {
-      addAIMessage('bot','⚠️ Для работы НейроМозга нужен API-ключ Claude. Получите на console.anthropic.com');
-    }
+    addAIMessage('bot','⚠️ API-ключ Claude не настроен. Обратитесь к администратору.');
     return;
   }
 
