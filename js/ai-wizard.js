@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════
 // AI WIZARD — Помощник по сборке комплектации
 // ═══════════════════════════════════════════════════════
-const AIW = { messages:[], busy:false };
+const AIW = { messages:[], busy:false, pendingImages:[] };
 
 function openAIWizard(){
   document.getElementById('aiWizModal').classList.add('show');
@@ -42,7 +42,24 @@ async function sendAIMessage(){
   const text = input.value.trim();
   if(!text || AIW.busy) return;
   input.value = '';
-  addAIMessage('user', text);
+
+  // Capture pending images for this message
+  const images = [...AIW.pendingImages];
+  AIW.pendingImages = [];
+  renderImagePreview();
+
+  // Show user message with image thumbnails
+  let userHtml = text;
+  if(images.length){
+    userHtml += '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">' +
+      images.map(img => `<img src="data:${img.mediaType};base64,${img.data}" style="height:50px;border-radius:4px;border:1px solid rgba(255,255,255,.15)">`).join('') +
+      '</div>';
+  }
+  addAIMessage('user', userHtml);
+
+  // Store images in last message for conversation context
+  AIW.messages[AIW.messages.length-1]._images = images;
+
   AIW.busy = true;
   document.getElementById('aiWizSend').disabled = true;
   showAITyping();
@@ -53,11 +70,27 @@ async function sendAIMessage(){
     return `${it.id}: ${it.name} [${it.cat}] — ${it.desc} | Варианты: ${opts} | Ед: ${it.unit}`;
   }).join('\n');
 
-  // Build conversation history
-  const convHistory = AIW.messages.filter(m=>m.role==='user'||m.role==='bot').map(m=>({
-    role: m.role==='user'?'user':'assistant',
-    content: m.text
-  }));
+  // Build conversation history (with vision support)
+  const convHistory = AIW.messages.filter(m=>m.role==='user'||m.role==='bot').map(m=>{
+    const role = m.role==='user'?'user':'assistant';
+    // Check if this message has images
+    if(m._images && m._images.length){
+      const content = [];
+      m._images.forEach(img => {
+        content.push({
+          type: 'image',
+          source: { type: 'base64', media_type: img.mediaType, data: img.data }
+        });
+      });
+      // Extract plain text (strip HTML image tags)
+      const plainText = m.text.replace(/<div[\s\S]*?<\/div>/g,'').trim();
+      if(plainText) content.push({ type: 'text', text: plainText });
+      return { role, content };
+    }
+    // Strip any HTML from text for API
+    const cleanText = m.text.replace(/<[^>]+>/g,'').trim();
+    return { role, content: cleanText || '...' };
+  });
 
   const pw=parseFloat(document.getElementById('plotW').value)||100;
   const pl=parseFloat(document.getElementById('plotL').value)||50;
@@ -169,6 +202,19 @@ ${CATALOG.filter(i=>i.areaW>0&&i.areaL>0).map(i=>`- ${i.id}: ${i.name}: ${i.area
 ===END===
 
 Можно выводить несколько блоков в одном ответе (APPLY + LAYOUT + RENDER).
+
+АНАЛИЗ ИЗОБРАЖЕНИЙ ПРОЕКТА:
+Если пользователь загружает фото/рендер/план — проанализируй:
+1. Определи тип здания (ангар, капитальное, тент) и примерные размеры
+2. Посчитай кол-во спортивных объектов (корты, поля, дорожки, залы)
+3. Определи тип каждого объекта (падел, теннис, футбол, баскетбол, лёд и т.д.)
+4. Отметь наличие инфраструктуры (АБК, парковка, благоустройство, кафе)
+5. Если есть кадастровая карта — извлеки размеры участка, кадастровый номер
+6. Задай уточняющие вопросы по неясным деталям
+7. После уточнений — сформируй APPLY с полной комплектацией и расчётом
+
+При анализе фото будь конкретен: «Вижу здание ~60×40м с деревянным фасадом, внутри предположительно 4-5 кортов. Рядом открытая площадка (возможно теннис). Уточните:...»
+
 Отвечай кратко, по-русски. Задавай уточняющие вопросы если чего-то не хватает.`;
 
   try {
@@ -399,4 +445,52 @@ function stopVoice(){
   btn.classList.remove('recording');
   document.getElementById('aiWizInput').placeholder = 'Опишите что хотите построить...';
   if(voiceRecog){ try{voiceRecog.stop();}catch(e){} voiceRecog=null; }
+}
+
+/* ─── PHOTO UPLOAD FOR VISION ─── */
+function handleAIPhotos(input){
+  const files = Array.from(input.files);
+  if(!files.length) return;
+  files.forEach(file => {
+    if(!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target.result; // data:image/...;base64,...
+      AIW.pendingImages.push({
+        data: base64.split(',')[1],
+        mediaType: file.type,
+        name: file.name
+      });
+      renderImagePreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+  // If input is empty, suggest text
+  const textInput = document.getElementById('aiWizInput');
+  if(!textInput.value.trim()){
+    textInput.value = 'Проанализируй эти изображения проекта клиента. Определи какие спортивные объекты здесь есть, их количество, и собери комплектацию с расчётом стоимости.';
+  }
+}
+
+function renderImagePreview(){
+  const cont = document.getElementById('aiImagePreview');
+  if(!AIW.pendingImages.length){
+    cont.style.display = 'none';
+    cont.innerHTML = '';
+    return;
+  }
+  cont.style.display = 'flex';
+  cont.innerHTML = AIW.pendingImages.map((img,i) => `
+    <div style="position:relative;display:inline-block">
+      <img src="data:${img.mediaType};base64,${img.data}" style="height:60px;border-radius:6px;border:1px solid rgba(155,109,255,.3)">
+      <button onclick="removeAIImage(${i})" style="position:absolute;top:-6px;right:-6px;background:#f87171;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:18px;padding:0">×</button>
+      <div style="font-size:9px;color:#888;text-align:center;margin-top:2px">${img.name.substring(0,15)}</div>
+    </div>
+  `).join('');
+}
+
+function removeAIImage(idx){
+  AIW.pendingImages.splice(idx, 1);
+  renderImagePreview();
 }
