@@ -50,13 +50,14 @@
       <button class="cTab" onclick="switchCTab('presets',this)" style="color:var(--gold2);font-weight:700">★ Шаблоны</button>
       <button class="cTab active" onclick="switchCTab('racket',this)">Ракеточные</button>
       <button class="cTab" onclick="switchCTab('team',this)">Командные</button>
-      <button class="cTab" onclick="switchCTab('athletics',this)">Атлетика</button>
-      <button class="cTab" onclick="switchCTab('fun',this)">Развлечения</button>
-      <button class="cTab" onclick="switchCTab('glamping',this)">Глэмпинг</button>
-      <button class="cTab" onclick="switchCTab('wellness',this)">Велнес/СПА</button>
+      <button class="cTab extTab" onclick="switchCTab('athletics',this)">Атлетика</button>
+      <button class="cTab extTab" onclick="switchCTab('fun',this)">Развлечения</button>
+      <button class="cTab extTab" onclick="switchCTab('glamping',this)">Глэмпинг</button>
+      <button class="cTab extTab" onclick="switchCTab('wellness',this)">Велнес/СПА</button>
       <button class="cTab" onclick="switchCTab('infra',this)">Инфра/АБК</button>
-      <button class="cTab" onclick="switchCTab('prep',this)">Благоустройство</button>
+      <button class="cTab extTab" onclick="switchCTab('prep',this)">Благоустройство</button>
       <button class="cTab" onclick="switchCTab('settings',this)">⚙ Цены</button>
+      <button class="cTab" id="extToggleBtn" onclick="toggleExtendedMode()" style="color:var(--cyan);border-color:rgba(34,211,238,.3);margin-left:auto;">Ещё ▼</button>
     </div>
     <div id="calcGrid">
       <div id="tabPresets"></div>
@@ -121,6 +122,9 @@
   <div id="planBar">
     <button class="pBtn" onclick="document.getElementById('fileIn').click()">📂 Карта</button>
     <input type="file" id="fileIn" accept="image/*" style="display:none" onchange="loadMap(this)">
+    <label style="font-size:10px;color:var(--tx3);cursor:pointer;display:flex;align-items:center;gap:3px;" title="Если на скриншоте карты есть линейка с расстоянием — отметьте для авто-масштаба">
+      <input type="checkbox" id="mapHasRuler"> Линейка на карте
+    </label>
     <div class="psep"></div>
     <button class="pBtn gold" id="bRuler" onclick="startRuler()">📏 Линейка</button>
     <button class="pBtn gold" onclick="openGpsModal()">🌐 GPS</button>
@@ -195,6 +199,23 @@
 
 <!-- ════════════════════════════════ MODULE 3: RENDER ════════════════════════════════ -->
 <div class="module" id="modRender">
+  <!-- REFERENCE IMAGE SECTION -->
+  <div class="rSection" style="max-width:1100px;background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.2);border-radius:8px;padding:14px 18px;margin-bottom:16px;">
+    <h3 style="margin-bottom:10px;"><span>🛰️</span> Привязка к местности (Reference Image) <span id="refModeTag" style="display:none;background:var(--green);color:#000;font-size:9px;padding:2px 6px;border-radius:4px;margin-left:8px;">ACTIVE</span></h3>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:10px;">Загрузите спутниковую карту или захватите план — AI разместит здания на реальной местности.</p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="pBtn" style="background:rgba(34,211,238,.15);border-color:var(--cyan);color:var(--cyan);" onclick="captureMapAsRef()">Захватить план</button>
+      <button class="pBtn" onclick="document.getElementById('refUpload').click()">Загрузить фото</button>
+      <input type="file" id="refUpload" accept="image/*" style="display:none" onchange="uploadRefImage(this)">
+      <label style="font-size:11px;color:var(--tx2);margin-left:8px;cursor:pointer;">
+        <input type="checkbox" id="refEnabled" checked style="margin-right:4px;">Использовать reference при генерации
+      </label>
+    </div>
+    <div id="refPreview" style="margin-top:10px;display:flex;align-items:center;">
+      <span style="color:var(--tx4);font-size:11px;">Нет reference-изображения. Генерация будет без привязки к местности.</span>
+    </div>
+  </div>
+
   <div class="rSection" style="max-width:1100px;">
     <h3><span>🎬</span> Вид сверху (img2img)</h3>
     <textarea class="promptBox" id="pTop" placeholder="Появится после генерации в модуле 02…" rows="5"></textarea>

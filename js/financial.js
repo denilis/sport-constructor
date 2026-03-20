@@ -95,9 +95,14 @@ function calcFin(){
       }
     });
   });
-  const abkA = calcAbkArea();
-  if(abkA>0){ const c=abkA*45000; capexEquip+=c; capexItems.push({name:'АБК строительство ('+abkA+' м²)',qty:1,cost:c}); }
-  APP.hangars.forEach((h,i)=>{
+  // ABK buildings
+  APP.hangars.filter(h=>h.type==='abk').forEach((h,i)=>{
+    const bt=BUILDING_TYPES.find(b=>b.id===h.type);
+    const area=h.w*h.h*(h.floors||1);
+    if(area>0){ const c=area*(bt?bt.price:45000); capexEquip+=c; capexItems.push({name:'АБК №'+(i+1)+' ('+area+' м², '+(h.floors||1)+' эт.)',qty:1,cost:c}); }
+  });
+  // Sport hangars
+  APP.hangars.filter(h=>h.type!=='abk').forEach((h,i)=>{
     const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[0];
     const area=calcHangarArea(h);
     if(area>0){ const c=area*bt.price; capexEquip+=c; capexItems.push({name:'Ангар №'+(i+1)+' ('+bt.name+', '+area+' м²)',qty:1,cost:c}); }

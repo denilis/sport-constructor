@@ -218,6 +218,28 @@ const BUILDING_TYPES = [
   {id:'lstk',name:'ЛСТК / Сэндвич',price:19000,zone:'sport'},
   {id:'wood',name:'Дерево-клеёный',price:27000,zone:'well'},
   {id:'concrete',name:'Монолит/Кирпич',price:45000,zone:'event'},
+  {id:'abk',name:'АБК (Админ-бытовой корпус)',price:45000,zone:'infra',isAbk:true},
+];
+
+// ═══════════════════════════════════════════════════════
+// ROOM CATALOG — помещения для АБК
+// infraLink связывает помещение с CATALOG infra-item для синхронизации
+// areaPerUnit: если infra-item в «мест», сколько м² на 1 место
+// ═══════════════════════════════════════════════════════
+const ROOM_CATALOG = [
+  {id:'rm_reception',name:'Рецепция',icon:'💁',minArea:20,defaultW:8,defaultH:5,infraLink:'reception'},
+  {id:'rm_cafe',name:'Кафе / Бар',icon:'☕',minArea:30,defaultW:10,defaultH:6,infraLink:'cafe'},
+  {id:'rm_locker_m',name:'Раздевалка (М)',icon:'🚹',minArea:15,defaultW:6,defaultH:5,infraLink:'locker_m',areaPerUnit:2.5},
+  {id:'rm_locker_f',name:'Раздевалка (Ж)',icon:'🚺',minArea:15,defaultW:6,defaultH:5,infraLink:'locker_f',areaPerUnit:2.5},
+  {id:'rm_wc',name:'Санузлы / Душевые',icon:'🚿',minArea:10,defaultW:5,defaultH:4,infraLink:'wc'},
+  {id:'rm_coach',name:'Тренерская',icon:'📋',minArea:12,defaultW:5,defaultH:4,infraLink:'coach_room'},
+  {id:'rm_storage',name:'Склад / Инвентарная',icon:'📦',minArea:8,defaultW:4,defaultH:4,infraLink:'storage'},
+  {id:'rm_office',name:'Офис администрации',icon:'🏢',minArea:15,defaultW:6,defaultH:5},
+  {id:'rm_server',name:'Серверная / ИТ',icon:'🖥️',minArea:6,defaultW:3,defaultH:3},
+  {id:'rm_medical',name:'Медицинский кабинет',icon:'🏥',minArea:12,defaultW:5,defaultH:4},
+  {id:'rm_corridor',name:'Коридор',icon:'🚪',minArea:0,defaultW:10,defaultH:2},
+  {id:'rm_staircase',name:'Лестничная клетка',icon:'🪜',minArea:6,defaultW:3,defaultH:3},
+  {id:'rm_heating',name:'Котельная / ИТП',icon:'🔥',minArea:10,defaultW:4,defaultH:4,infraLink:'heating'},
 ];
 
 const ZONE_COLORS = {

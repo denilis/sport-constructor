@@ -42,24 +42,13 @@ window.addEventListener('DOMContentLoaded',()=>{
   new ResizeObserver(resizePlan).observe(document.getElementById('planCanvas'));
   // Patch gridStep listener
   document.getElementById('gridStep')?.addEventListener('input',drawPlan);
-  // Init ABK with default hangar panel (tabBuilding is now inside modBuilding module)
+  // Init building panel (tabBuilding is now inside modBuilding module)
   document.getElementById('tabBuilding').innerHTML=`
-    <div class="abkPanel">
-      <h4>АБК — Административный блок</h4>
-      <p style="font-size:11px;color:var(--tx3);margin-bottom:10px;">Включает позиции из вкладки «Инфра/АБК». Площадь рассчитывается автоматически.</p>
-      <div class="abkList" id="abk-list-mini"><span style="color:var(--tx4)">Добавьте позиции на вкладке «Инфра/АБК»</span></div>
-      <div class="sliderRow">
-        <label>Коридоры / стены:</label>
-        <input type="range" id="abk-corridor-pct" min="0" max="50" value="30" oninput="calcABK()">
-        <span class="sliderVal" id="abk-corridor-val">30%</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:10px;border-top:1px dashed var(--bd);padding-top:10px;">
-        <span style="font-size:11px;color:var(--tx3)">Площадь АБК: <b id="abk-area-disp" style="color:var(--tx)">0 м²</b></span>
-        <span style="font-size:13px;font-weight:700;color:var(--gold2)" id="abk-cost-disp">0 ₽</span>
-      </div>
-    </div>
     <div id="hangars-container"></div>
-    <button class="btnGhost" onclick="addHangar()" style="margin-top:0;">+ Добавить спортивный ангар</button>
+    <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+      <button class="btnGhost" onclick="addABK()" style="margin:0;border-color:rgba(34,211,238,.3);color:var(--cyan)">+ Добавить АБК</button>
+      <button class="btnGhost" onclick="addHangar()" style="margin:0;">+ Добавить спортивный ангар</button>
+    </div>
   `;
   renderHangars();
   renderSettings();

@@ -17,6 +17,35 @@ function checkLocalThumbs(){
   });
 }
 
+// Standard mode: only show core items, extended reveals all
+if(APP.extendedMode===undefined) APP.extendedMode = false;
+const STANDARD_ITEMS = new Set([
+  'padel_std','padel_pano','padel_single',
+  'tennis_hard','tennis_grass','tennis_clay',
+  'ice','football_5','football_7','football_11','football_indoor',
+  // infra — always shown
+  'reception','cafe','locker_m','locker_f','wc','coach_room','heating','storage','light',
+]);
+const EXTENDED_CATS = new Set(['athletics','fun','glamping','wellness','prep']);
+
+function toggleExtendedMode(){
+  APP.extendedMode = !APP.extendedMode;
+  applyExtendedMode();
+}
+function applyExtendedMode(){
+  const ext = APP.extendedMode;
+  const btn = document.getElementById('extToggleBtn');
+  if(btn) btn.textContent = ext ? 'Скрыть ▲' : 'Ещё ▼';
+  // Toggle extended category tabs
+  document.querySelectorAll('#calcTabs .extTab').forEach(t=>{
+    t.style.display = ext ? '' : 'none';
+  });
+  // Toggle extended items within standard categories (e.g. basketball, volleyball in team)
+  document.querySelectorAll('.oCard[data-ext]').forEach(c=>{
+    c.style.display = ext ? '' : 'none';
+  });
+}
+
 function initCalc() {
   CATALOG.forEach(it => { APP.calcState[it.id] = {opts: it.options.map(()=>0)}; });
   checkLocalThumbs();
@@ -24,6 +53,7 @@ function initCalc() {
   addHangar();
   renderSettings();
   recalc();
+  applyExtendedMode();
 }
 
 function switchCTab(cat, btn) {
@@ -67,6 +97,9 @@ function renderCard(item) {
   const div=document.createElement('div');
   div.className='oCard'+(totalQ>0?' sel':'');
   div.id='card-'+item.id;
+  // Mark non-standard items in standard categories as extended
+  const isExtItem = !EXTENDED_CATS.has(item.cat) && !STANDARD_ITEMS.has(item.id);
+  if(isExtItem) div.dataset.ext = '1';
 
   const step = ['м²','м.п.','м³'].includes(item.unit)?10:(item.unit==='мест'?5:1);
   const varRows = item.options.map((opt,oi)=>{
@@ -198,11 +231,15 @@ async function genThumb(itemId, optIdx, event){
         const res = await fetch('https://api.kie.ai/api/v1/jobs/recordInfo?taskId='+taskId, {headers:{'Authorization':'Bearer '+KIE_API_KEY}});
         const data = await res.json();
         const d = data.data;
-        if(d?.state==='success' || d?.successFlag===1 || d?.status==='completed' || d?.status==='success'){
-          // Extract URL from various response formats
-          if(d.resultJson){ try { const rj=JSON.parse(d.resultJson); imageUrl=rj.resultUrls?.[0]||rj.resultImageUrl; } catch(e){} }
-          if(!imageUrl) imageUrl = d.response?.resultImageUrl || d.response?.imageUrl || d.resultImageUrl;
-          if(!imageUrl && d.response && typeof d.response==='object'){ const v=Object.values(d.response).find(x=>typeof x==='string'&&x.includes('http')); if(v)imageUrl=v; }
+        if(d?.state==='success'){
+          // KIE returns resultJson as JSON string with resultUrls array
+          if(d.resultJson){
+            try {
+              const rj = typeof d.resultJson==='string' ? JSON.parse(d.resultJson) : d.resultJson;
+              imageUrl = rj.resultUrls?.[0] || rj.resultImageUrl;
+            } catch(e){}
+          }
+          if(!imageUrl) imageUrl = d.resultImageUrl || d.imageUrl;
           break;
         }
         if(d?.state==='failed'||d?.state==='error') break;
@@ -304,37 +341,51 @@ function recalc() {
         </div>`;
       });
     });
-    // ABK shell cost
-    const abkArea=calcAbkArea();
-    if(abkArea>0){
-      const shellCost=abkArea*45000;
-      total+=shellCost;
-      plotArea+=abkArea;
-      html+=`<div class="sumItem">
-        <div><div class="sn">АБК — строительство</div><span class="sm">${abkArea} м² (вкл. коридоры)</span></div>
-        <div class="sp">${fmt(shellCost)}</div>
-      </div>`;
-    }
     html+='</div>';
   }
 
-  // Hangars
+  // Buildings: ABK + Hangars
   if(APP.hangars.length){
-    html+=`<div class="sumSection"><div class="sumSect">Здания / Ангары</div>`;
-    APP.hangars.forEach((h,i)=>{
-      const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[0];
-      const area=calcHangarArea(h);
-      if(area>0){
-        const cost=area*bt.price;
-        total+=cost;
-        plotArea+=area;
-        html+=`<div class="sumItem">
-          <div><div class="sn">Ангар №${i+1}</div><span class="sm">${bt.name}, ${area} м²</span></div>
-          <div class="sp">${fmt(cost)}</div>
-        </div>`;
-      }
-    });
-    html+='</div>';
+    const abks=APP.hangars.filter(h=>h.type==='abk');
+    const hangars=APP.hangars.filter(h=>h.type!=='abk');
+    // АБК
+    if(abks.length){
+      html+=`<div class="sumSection"><div class="sumSect">АБК</div>`;
+      abks.forEach((h,i)=>{
+        const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[6];
+        const floors=h.floors||1;
+        const totalArea=h.w*h.h*floors;
+        const footprint=h.w*h.h;
+        if(totalArea>0){
+          const cost=totalArea*bt.price;
+          total+=cost;
+          plotArea+=footprint;
+          html+=`<div class="sumItem">
+            <div><div class="sn">АБК №${i+1}</div><span class="sm">${h.w}×${h.h}м · ${floors} эт. · ${totalArea} м²</span></div>
+            <div class="sp">${fmt(cost)}</div>
+          </div>`;
+        }
+      });
+      html+='</div>';
+    }
+    // Ангары
+    if(hangars.length){
+      html+=`<div class="sumSection"><div class="sumSect">Здания / Ангары</div>`;
+      hangars.forEach((h,i)=>{
+        const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[0];
+        const area=calcHangarArea(h);
+        if(area>0){
+          const cost=area*bt.price;
+          total+=cost;
+          plotArea+=area;
+          html+=`<div class="sumItem">
+            <div><div class="sn">Ангар №${i+1}</div><span class="sm">${bt.name}, ${area} м²</span></div>
+            <div class="sp">${fmt(cost)}</div>
+          </div>`;
+        }
+      });
+      html+='</div>';
+    }
   }
 
   if(!html) html='<div class="sumEmpty">Выберите объекты</div>';
@@ -354,16 +405,13 @@ function recalc() {
 }
 
 function calcAbkArea() {
-  let net=0;
-  CATALOG.filter(i=>i.cat==='infra').forEach(item=>{
-    const tq=itemTotalQty(item.id);
-    if(tq===0) return;
-    if(item.unit==='мест') net+=Math.ceil(tq*2.5);
-    else if(item.unit==='м²') net+=tq;
-  });
-  if(net===0) return 0;
-  const pct=parseInt(document.getElementById('abk-corridor-pct')?.value||30);
-  return Math.ceil(net*(1+pct/100));
+  // Returns total ABK floor area from ABK buildings
+  const abks=APP.hangars.filter(h=>h.type==='abk');
+  if(abks.length){
+    return abks.reduce((s,h)=>s+h.w*h.h*(h.floors||1),0);
+  }
+  // Fallback: legacy formula
+  return calcAbkAreaFormula();
 }
 
 function calcHangarArea(h) {
@@ -379,28 +427,76 @@ function calcHangarArea(h) {
 }
 
 // ── ABK MODULE ──
-function calcABK() {
-  const infraItems=CATALOG.filter(i=>i.cat==='infra' && itemTotalQty(i.id)>0);
-  let net=0, listH='';
-  infraItems.forEach(item=>{
+function calcAbkAreaFormula() {
+  // Legacy formula for backward compat — estimates ABK area from infra items
+  let net=0;
+  CATALOG.filter(i=>i.cat==='infra').forEach(item=>{
     const tq=itemTotalQty(item.id);
-    let area=0;
-    if(item.unit==='мест'){area=Math.ceil(tq*2.5);listH+=`<div style="display:flex;justify-content:space-between"><span>${item.name}</span><span style="color:var(--gold2)">${tq} мест ≈ ${area} м²</span></div>`;}
-    else if(item.unit==='м²'){area=tq;listH+=`<div style="display:flex;justify-content:space-between"><span>${item.name}</span><span style="color:var(--gold2)">${area} м²</span></div>`;}
-    else {listH+=`<div style="display:flex;justify-content:space-between"><span>${item.name}</span><span style="color:var(--gold2)">${tq} ед.</span></div>`;}
-    if(['м²','мест'].includes(item.unit)) net+=area;
+    if(tq===0) return;
+    if(item.unit==='мест') net+=Math.ceil(tq*2.5);
+    else if(item.unit==='м²') net+=tq;
   });
+  if(net===0) return 0;
   const pct=parseInt(document.getElementById('abk-corridor-pct')?.value||30);
-  const circulation=Math.ceil(net*(pct/100));
-  const gross=net+circulation;
-  listH+=`<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;color:var(--tx3)">+ Коридоры ${pct}%: ${circulation} м²</div>`;
-  const abkEl=document.getElementById('abk-list-mini');
-  if(abkEl) abkEl.innerHTML=listH||'<span style="color:var(--tx4)">Пусто</span>';
-  const areaEl=document.getElementById('abk-area-disp');
-  const costEl=document.getElementById('abk-cost-disp');
-  if(areaEl) areaEl.textContent=gross+' м²';
-  if(costEl) costEl.textContent=fmt(gross*45000);
-  if(document.getElementById('abk-corridor-val')) document.getElementById('abk-corridor-val').textContent=pct+'%';
+  return Math.ceil(net*(1+pct/100));
+}
+
+function addABK() {
+  const area = calcAbkAreaFormula() || 200;
+  const w = Math.max(24, Math.ceil(Math.sqrt(area * 2)));
+  const h = Math.max(12, Math.ceil(area / w));
+  APP.hangars.push({
+    id: Date.now(), type: 'abk', items: {}, w, h,
+    floors: 1, layout: [], layout2: [], docking: [],
+    wallOffset: 1, objectGap: 0.5
+  });
+  renderHangars(); recalc();
+}
+
+function updateABKFloors(id, floors) {
+  const h = APP.hangars.find(x=>x.id===id);
+  if(h) { h.floors = parseInt(floors) || 1; renderHangars(); recalc(); }
+}
+
+function updateABKDocking(id, hangarId) {
+  const h = APP.hangars.find(x=>x.id===id);
+  if(!h || !h.docking) return;
+  if(hangarId && !h.docking.find(d=>d.hangarId===+hangarId)){
+    if(h.docking.length >= 2){ alert('Максимум 2 стыковки'); return; }
+    h.docking.push({hangarId: +hangarId, side: 'east'});
+  }
+  renderHangars(); recalc();
+}
+
+function removeABKDocking(id, hangarId) {
+  const h = APP.hangars.find(x=>x.id===id);
+  if(h && h.docking) { h.docking = h.docking.filter(d=>d.hangarId!==hangarId); renderHangars(); recalc(); }
+}
+
+// Sync ABK rooms back to calculator infra items
+function syncAbkToCalc(abk) {
+  if(!abk || abk.type !== 'abk') return;
+  const allRooms = [...(abk.layout||[]), ...(abk.layout2||[])];
+  ROOM_CATALOG.forEach(rm => {
+    if(!rm.infraLink) return;
+    const rooms = allRooms.filter(li => li.itemId === rm.id);
+    const totalArea = rooms.reduce((s, r) => s + r.w * r.h, 0);
+    const s = APP.calcState[rm.infraLink];
+    if(!s) return;
+    if(rm.areaPerUnit) {
+      s.opts[0] = Math.ceil(totalArea / rm.areaPerUnit);
+    } else {
+      s.opts[0] = Math.ceil(totalArea);
+    }
+  });
+}
+
+function calcABK() {
+  // Update display for any ABK buildings
+  const abks = APP.hangars.filter(h=>h.type==='abk');
+  if(abks.length) {
+    abks.forEach(abk => syncAbkToCalc(abk));
+  }
   recalc();
 }
 
@@ -418,7 +514,81 @@ function renderHangars() {
   const cont=document.getElementById('hangars-container');
   if(!cont) return;
   cont.innerHTML='';
-  APP.hangars.forEach((h,idx)=>{
+
+  const abks = APP.hangars.filter(h=>h.type==='abk');
+  const hangars = APP.hangars.filter(h=>h.type!=='abk');
+
+  // ── АБК СЕКЦИЯ ──
+  if(abks.length){
+    cont.innerHTML+=`<div style="margin-bottom:8px"><h4 style="color:var(--cyan);font-size:13px;margin:0">🏢 Административно-бытовые корпуса</h4></div>`;
+  }
+  abks.forEach((h,idx)=>{
+    const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[6];
+    const floors=h.floors||1;
+    const totalArea=h.w*h.h*floors;
+    const cost=totalArea*bt.price;
+    const roomCount=[...(h.layout||[]),...(h.layout2||[])].length;
+    // Docking info
+    let dockingH='';
+    (h.docking||[]).forEach(d=>{
+      const dh=APP.hangars.find(x=>x.id===d.hangarId);
+      if(dh){
+        const dIdx=hangars.indexOf(dh)+1;
+        dockingH+=`<span style="font-size:11px;background:rgba(34,211,238,.1);color:var(--cyan);padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px">Ангар №${dIdx} <button style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px" onclick="removeABKDocking(${h.id},${d.hangarId})">×</button></span>`;
+      }
+    });
+    // Room summary
+    let roomSummary='';
+    const allRooms=[...(h.layout||[]),...(h.layout2||[])];
+    if(allRooms.length){
+      const grouped={};
+      allRooms.forEach(r=>{if(!grouped[r.itemId])grouped[r.itemId]=0;grouped[r.itemId]++;});
+      roomSummary=Object.entries(grouped).map(([id,cnt])=>{
+        const rm=ROOM_CATALOG.find(r=>r.id===id);
+        return rm?`<span style="font-size:10px;color:#ccc;background:rgba(255,255,255,.06);padding:2px 6px;border-radius:3px">${rm.icon} ${rm.name} ×${cnt}</span>`:'';
+      }).join('');
+    }
+    // Docking picker (hangars only)
+    let dockPickerH='';
+    if(hangars.length){
+      dockPickerH=`<select onchange="if(this.value)updateABKDocking(${h.id},this.value);this.value=''" style="font-size:11px;padding:3px 6px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:4px"><option value="">+ Пристыковать ангар…</option>${hangars.map((hh,i)=>`<option value="${hh.id}">Ангар №${i+1} (${hh.w}×${hh.h}м)</option>`).join('')}</select>`;
+    }
+    cont.innerHTML+=`
+    <div class="bCard" style="border-color:rgba(34,211,238,.3)">
+      <div class="bCardHead">
+        <div><h4 style="color:var(--cyan)">АБК №${idx+1}</h4><div class="bMeta">${h.w}×${h.h}м · ${floors} эт. · ${totalArea} м² · ${fmt(cost)} · ${roomCount} помещений</div></div>
+        <div style="display:flex;gap:4px;">
+          <button class="pBtn" style="color:var(--cyan);border-color:rgba(34,211,238,.3);" onclick="openHangarEditor(${h.id})">Редактор</button>
+          <button class="pBtn red" onclick="removeHangar(${h.id})">✕</button>
+        </div>
+      </div>
+      <div class="bCardBody">
+        <div class="bRow">
+          <div class="bField"><label>Размеры (м)</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" value="${h.w}" min="10" max="100" style="width:60px;padding:4px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:4px;text-align:center" onchange="updateHangar(${h.id},'w',+this.value)">
+              <span style="color:#888">×</span>
+              <input type="number" value="${h.h}" min="8" max="80" style="width:60px;padding:4px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:4px;text-align:center" onchange="updateHangar(${h.id},'h',+this.value)">
+            </div>
+          </div>
+          <div class="bField"><label>Этажность</label>
+            <select onchange="updateABKFloors(${h.id},this.value)" style="padding:4px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:4px">
+              <option value="1"${floors===1?' selected':''}>1 этаж</option>
+              <option value="2"${floors===2?' selected':''}>2 этажа</option>
+            </select>
+          </div>
+        </div>
+        ${hangars.length?`<div class="bField" style="margin-top:6px"><label>Стыковка к ангарам</label><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${dockingH}${(h.docking||[]).length<2?dockPickerH:''}</div></div>`:''}
+        ${roomSummary?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${roomSummary}</div>`:'<div style="color:var(--tx4);font-size:11px;margin-top:6px">Откройте редактор для размещения помещений</div>'}
+      </div>
+    </div>`;
+  });
+
+  // ── АНГАРЫ СЕКЦИЯ ──
+  if(hangars.length){
+    cont.innerHTML+=`<div style="margin:12px 0 8px"><h4 style="color:var(--gold2);font-size:13px;margin:0">🏗️ Спортивные ангары</h4></div>`;
+  }
+  hangars.forEach((h,idx)=>{
     const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[0];
     const area=calcHangarArea(h);
     const cost=area*bt.price;
@@ -428,12 +598,13 @@ function renderHangars() {
       const it=CATALOG.find(i=>i.id===id);
       if(it) selectedH+=`<div class="hSel"><span>${it.name} × ${d.count}</span><em>${it.areaW*it.areaL*d.count} м²</em><button class="rmBtn" onclick="removeFromHangar(${h.id},'${id}')">×</button></div>`;
     });
-    // Split picker: selected in calculator vs others
     const calcSelected = itemsInCat.filter(it => itemTotalQty(it.id) > 0);
     const calcOthers = itemsInCat.filter(it => itemTotalQty(it.id) <= 0);
     let pickerH = '';
     if(calcSelected.length) pickerH += '<div class="hPickerLabel">Выбранные:</div>' + calcSelected.map(it=>`<div class="hItem hItemSel" onclick="addToHangar(${h.id},'${it.id}')">${it.icon} ${it.name} <span class="hItemQty">×${itemTotalQty(it.id)}</span></div>`).join('');
     if(calcOthers.length) pickerH += '<div class="hPickerLabel">Другие:</div>' + calcOthers.map(it=>`<div class="hItem" onclick="addToHangar(${h.id},'${it.id}')">${it.icon} ${it.name}</div>`).join('');
+    // Filter out ABK type from the building type selector
+    const hangarTypes = BUILDING_TYPES.filter(b=>!b.isAbk);
     cont.innerHTML+=`
     <div class="bCard">
       <div class="bCardHead">
@@ -447,7 +618,7 @@ function renderHangars() {
         <div class="bRow">
           <div class="bField"><label>Тип здания</label>
             <select onchange="updateHangar(${h.id},'type',this.value)">
-              ${BUILDING_TYPES.map(b=>`<option value="${b.id}"${b.id===h.type?' selected':''}>${b.name} — ${fmt2(b.price)} ₽/м²</option>`).join('')}
+              ${hangarTypes.map(b=>`<option value="${b.id}"${b.id===h.type?' selected':''}>${b.name} — ${fmt2(b.price)} ₽/м²</option>`).join('')}
             </select>
           </div>
         </div>

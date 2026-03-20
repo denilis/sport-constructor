@@ -37,7 +37,21 @@ function setScale(pxDist,realM){
 function loadMap(inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=e=>{const img=new Image();img.onload=()=>{APP.planImg=img;APP.planImgW=img.width;APP.planImgH=img.height;APP.zoom=0;fitPlan();drawPlan();};img.src=e.target.result;};
+  r.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      APP.planImg=img;APP.planImgW=img.width;APP.planImgH=img.height;APP.zoom=0;fitPlan();drawPlan();
+      // If "ruler on map" checkbox is checked, auto-start ruler mode
+      const hasRuler = document.getElementById('mapHasRuler')?.checked;
+      if(hasRuler){
+        setTimeout(()=>{
+          showHint('На карте есть линейка? Кликните начало и конец линейки на карте, затем введите расстояние.');
+          startRuler();
+        }, 300);
+      }
+    };
+    img.src=e.target.result;
+  };
   r.readAsDataURL(f);
 }
 
@@ -253,7 +267,7 @@ function buildLibrary(){
     {id:'lib_park',label:'Парковка',w:50,h:30,ht:0,zone:'infra',note:'~70 мест'},
     {id:'lib_boiler',label:'Котельная',w:20,h:20,ht:5,zone:'infra',note:''},
     {id:'lib_mfc',label:'МФЦ/Конференц',w:59,h:30,ht:15,zone:'event',note:'до 200 чел'},
-    {id:'lib_abk',label:'АБК (админ-бытовой)',w:24,h:12,ht:4,zone:'infra',note:'раздевалки+офис'},
+    // ABK buildings are now added dynamically from APP.hangars below
   ];
 
   if(!window._planLibOpen) window._planLibOpen={};
@@ -277,21 +291,39 @@ function buildLibrary(){
     }
   }
 
-  // Hangars group — building types from catalog
+  // Existing ABK buildings from calculator
+  const existingAbks = APP.hangars.filter(h=>h.type==='abk');
+  if(existingAbks.length){
+    const isAbkOpen = window._planLibOpen['_abk']||false;
+    const abkHdr = document.createElement('div');
+    abkHdr.style.cssText='font-size:10px;color:#22d3ee;padding:6px 6px 4px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(255,255,255,.06);margin-top:2px;user-select:none;';
+    abkHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isAbkOpen?90:0}deg)">▶</span> 🏢 АБК <span style="color:#555;font-weight:400;font-size:9px">(${existingAbks.length})</span>`;
+    abkHdr.onclick=()=>{window._planLibOpen['_abk']=!window._planLibOpen['_abk']; buildLibrary();};
+    el.appendChild(abkHdr);
+    if(isAbkOpen){
+      existingAbks.forEach((h,i)=>{
+        const zc=ZONE_COLORS.infra;
+        const floors=h.floors||1;
+        el.appendChild(makeLibItem({id:'abk_'+h.id, label:'АБК №'+(i+1), w:h.w, h:h.h, ht:floors*3.5, zone:'infra', note:h.w*h.h*floors+' м² · '+floors+' эт.', hangarId:h.id, sourceId:'hangar_'+h.id}, zc));
+      });
+    }
+  }
+
+  // Hangars group — building types from catalog (exclude ABK type)
+  const hangarTypes = BUILDING_TYPES.filter(b=>!b.isAbk);
   const isHangarOpen = window._planLibOpen['_hangars']||false;
   const hangarHdr = document.createElement('div');
   hangarHdr.style.cssText='font-size:10px;color:#c5a059;padding:6px 6px 4px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(255,255,255,.06);margin-top:2px;user-select:none;';
-  hangarHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isHangarOpen?90:0}deg)">▶</span> 🏗 Ангары / Здания <span style="color:#555;font-weight:400;font-size:9px">(${BUILDING_TYPES.length})</span>`;
+  hangarHdr.innerHTML=`<span style="font-size:8px;transition:transform .2s;transform:rotate(${isHangarOpen?90:0}deg)">▶</span> 🏗 Ангары / Здания <span style="color:#555;font-weight:400;font-size:9px">(${hangarTypes.length})</span>`;
   hangarHdr.onclick=()=>{window._planLibOpen['_hangars']=!window._planLibOpen['_hangars']; buildLibrary();};
   el.appendChild(hangarHdr);
   if(isHangarOpen){
-    BUILDING_TYPES.forEach(bt=>{
+    hangarTypes.forEach(bt=>{
       const zc=ZONE_COLORS[bt.zone]||ZONE_COLORS.infra;
       const li=document.createElement('div');
       li.className='libItem';
       li.innerHTML=`<div class="liName"><span class="zDot" style="background:${zc.s}"></span>${bt.name}</div><div class="liDim">${fmtPrice(bt.price)} ₽/м² | нажмите для размещения</div>`;
       li.onclick=()=>{
-        // Create a new hangar in APP.hangars and start placing it
         const newH={id:Date.now(), type:bt.id, w:40, h:60, wallOffset:3, objectGap:2, layout:[], items:{}};
         APP.hangars.push(newH);
         const tpl={id:'hangar_'+newH.id, label:'Ангар ('+bt.name+')', w:newH.w, h:newH.h, ht:8, zone:bt.zone||'infra', note:newH.w*newH.h+' м²', hangarId:newH.id, sourceId:'hangar_'+newH.id};

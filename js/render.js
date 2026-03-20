@@ -1,6 +1,143 @@
 // ═══════════════════════════════════════════════════════
 // PROMPTS & RENDER
 // ═══════════════════════════════════════════════════════
+
+// Reference satellite image for img2img
+if(!APP.renderRefImage) APP.renderRefImage = null; // base64 data URL
+if(!APP.renderRefUrl) APP.renderRefUrl = null;     // hosted URL (if uploaded)
+
+// Translate Russian building labels to English for image generation
+const LABEL_EN = {
+  'Падел':'Padel Courts','Теннис':'Tennis Courts','Футбол':'Football Field','Баскетбол':'Basketball Court',
+  'Волейбол':'Volleyball Court','Ледовая':'Ice Arena','Бассейн':'Swimming Pool','Хамам':'Hammam Spa',
+  'Сауна':'Sauna','Баня':'Russian Bathhouse','Батут':'Trampoline Park','Скалодром':'Climbing Wall',
+  'Воркаут':'Workout Zone','Беговая':'Running Track','Купол':'Geodesic Dome','А-фрейм':'A-frame Cabin',
+  'Модуль':'Modular Cabin','Сафари':'Safari Tent','Кафе':'Cafe Restaurant','Рецепция':'Reception',
+  'Ангар':'Sports Hangar','АБК':'Administrative Building','Раздевалка':'Locker Room','Склад':'Storage',
+  'Трибун':'Grandstand','Универсальная':'Multi-sport Court','OCR':'Obstacle Course','Соляная':'Salt Room'
+};
+function labelToEn(label){
+  if(!label) return 'Building';
+  for(const [ru,en] of Object.entries(LABEL_EN)){
+    if(label.includes(ru)) return en;
+  }
+  return label;
+}
+
+// Map building type to English material description
+function bldMaterialEn(b){
+  const typeMap = {
+    'tent_cold':'white tensile fabric canopy','tent_warm':'insulated fabric canopy',
+    'air':'air-supported dome structure','lstk':'dark grey sandwich panel hangar with metal roof',
+    'wood':'warm wood-clad building with glass facades','concrete':'modern concrete and glass building'
+  };
+  const bt = BUILDING_TYPES.find(t=>t.id===b.type);
+  return typeMap[b.type] || (bt ? bt.name : 'modern building');
+}
+
+// Get English descriptions of hangar contents
+function hangarContentsEn(b){
+  const hangar = APP.hangars.find(h=>h.layout?.length && (b.hangarId===h.id || b.sourceId===('hangar_'+h.id)));
+  if(!hangar || !hangar.layout?.length) return [];
+  const contents = [];
+  const catMap = {
+    'padel':'padel courts with glass walls','tennis':'tennis courts with white lines',
+    'ice':'ice hockey rink','football':'football pitch with green turf','basketball':'basketball court',
+    'volleyball':'volleyball court','pool':'swimming pool','trampoline':'trampolines','climb':'climbing walls'
+  };
+  hangar.layout.forEach(li=>{
+    const it = CATALOG.find(c=>c.id===li.itemId);
+    if(!it) return;
+    for(const [key,desc] of Object.entries(catMap)){
+      if(it.id.includes(key)){contents.push(desc); return;}
+    }
+    contents.push(it.name);
+  });
+  return [...new Set(contents)];
+}
+
+// ═══════════════════════════════════════════════════════
+// REFERENCE IMAGE (satellite map)
+// ═══════════════════════════════════════════════════════
+function captureMapAsRef(){
+  const c = document.getElementById('cv');
+  if(!c || !APP.planImg){alert('Сначала загрузите карту в Планировщике');return;}
+  // Render plan canvas to a temp canvas (without UI elements, just map + buildings)
+  const tmp = document.createElement('canvas');
+  const maxDim = 1536; // good resolution for AI
+  const scale = Math.min(maxDim/APP.planImgW, maxDim/APP.planImgH, 1);
+  tmp.width = Math.round(APP.planImgW * scale);
+  tmp.height = Math.round(APP.planImgH * scale);
+  const tctx = tmp.getContext('2d');
+  tctx.drawImage(APP.planImg, 0, 0, tmp.width, tmp.height);
+  // Draw buildings as semi-transparent colored rectangles with labels
+  APP.planBuildings.forEach(b=>{
+    const bx = b.cx * scale, by = b.cy * scale;
+    const bw = b.w * (APP.planScale||1) * scale, bh = b.h * (APP.planScale||1) * scale;
+    tctx.save();
+    tctx.translate(bx, by);
+    tctx.rotate(b.angle||0);
+    tctx.fillStyle = 'rgba(59,130,246,0.35)';
+    tctx.strokeStyle = '#3b82f6';
+    tctx.lineWidth = 2;
+    tctx.fillRect(-bw/2, -bh/2, bw, bh);
+    tctx.strokeRect(-bw/2, -bh/2, bw, bh);
+    // Label
+    tctx.fillStyle = '#fff';
+    tctx.font = `bold ${Math.max(10, Math.round(14*scale))}px Arial`;
+    tctx.textAlign = 'center';
+    tctx.textBaseline = 'middle';
+    tctx.fillText(labelToEn(b.label), 0, 0);
+    tctx.restore();
+  });
+  APP.renderRefImage = tmp.toDataURL('image/jpeg', 0.85);
+  APP.renderRefUrl = null;
+  updateRefPreview();
+}
+
+function uploadRefImage(inp){
+  const f = inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      // Resize to max 1536px for API
+      const maxDim = 1536;
+      const scale = Math.min(maxDim/img.width, maxDim/img.height, 1);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width*scale);
+      c.height = Math.round(img.height*scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      APP.renderRefImage = c.toDataURL('image/jpeg', 0.85);
+      APP.renderRefUrl = null;
+      updateRefPreview();
+    };
+    img.src = e.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function clearRefImage(){
+  APP.renderRefImage = null;
+  APP.renderRefUrl = null;
+  updateRefPreview();
+}
+
+function updateRefPreview(){
+  const wrap = document.getElementById('refPreview');
+  if(!wrap) return;
+  if(APP.renderRefImage){
+    wrap.innerHTML = `<img src="${APP.renderRefImage}" style="max-height:120px;border-radius:6px;border:1px solid var(--bd);">
+      <button class="pBtn" onclick="clearRefImage()" style="margin-left:8px;color:var(--red);border-color:var(--red);">Убрать</button>
+      <span style="color:var(--green);font-size:11px;margin-left:8px;">Reference загружен</span>`;
+  } else {
+    wrap.innerHTML = `<span style="color:var(--tx4);font-size:11px;">Нет reference-изображения. Генерация будет без привязки к местности.</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// PROMPT GENERATION
+// ═══════════════════════════════════════════════════════
 function genPrompts(){
   const bs=APP.planBuildings;
   if(!bs.length){
@@ -9,117 +146,140 @@ function genPrompts(){
     });
     return;
   }
-  const hs=APP.planScale>0;
-  const zones={};
-  bs.forEach(b=>{if(!zones[b.zone])zones[b.zone]=[];zones[b.zone].push(b);});
-  const ZN={sport:'СПОРТ',event:'ИВЕНТ',glamp:'ГЛЕМПИНГ',well:'WELLNESS',gastro:'ГАСТРОНОМИЯ',infra:'ИНФРАСТРУКТУРА',other:'ПРОЧЕЕ'};
 
-  // Landscape options from checkboxes
+  const hasRef = !!APP.renderRefImage;
+
+  // Landscape options
   const lndKeepTrees = document.getElementById('lndKeepTrees')?.checked ?? true;
   const lndDesign = document.getElementById('lndDesign')?.checked ?? true;
   const lndWater = document.getElementById('lndWater')?.checked ?? false;
   const lndLighting = document.getElementById('lndLighting')?.checked ?? true;
-  const hasMapImage = !!APP.planImg;
 
-  // Build landscape description
-  let landscapeDesc = '';
-  if(hasMapImage){
-    landscapeDesc = 'CRITICAL: The visualization MUST match the real satellite/aerial photo of the site that was loaded. ';
-    landscapeDesc += 'Preserve the actual terrain, water bodies, roads, and surrounding buildings visible in the photo. ';
-    if(lndKeepTrees) landscapeDesc += 'Keep ALL existing trees and vegetation where no new buildings are placed — only clear trees directly under building footprints. ';
-    else landscapeDesc += 'Trees can be removed for landscaping redesign — replace with designed greenery. ';
+  let envDesc = '';
+  if(hasRef){
+    envDesc = 'Preserve the existing terrain, roads, trees, and surroundings from the reference photo.';
+    if(lndDesign) envDesc += ' Add manicured lawns, decorative hedges, and paved walkways between buildings.';
+    if(lndWater) envDesc += ' Add decorative water features.';
+    if(lndLighting) envDesc += ' Add elegant park lighting along paths.';
   } else {
-    landscapeDesc += 'No specific site photo loaded — create an idealized flat green site with surrounding forest. ';
-  }
-  if(lndDesign) landscapeDesc += 'Add professional landscape design: paved walking paths, manicured lawns, decorative plantings between buildings. ';
-  if(lndWater) landscapeDesc += 'Include decorative water features: fountains, small ponds or canals between zones. ';
-  if(lndLighting) landscapeDesc += 'Show elegant park lighting along paths and around buildings. ';
-
-  // STYLE REFERENCE (photorealistic aerial architectural visualization)
-  const STYLE_BASE = 'Photorealistic aerial architectural visualization, drone photography style. ' + landscapeDesc + 'Summer daytime, bright natural sunlight, soft shadows. Ultra-detailed textures: glass facades, metal roofs, wooden decks, asphalt parking. High-end resort/sports complex aesthetic. 8K render quality, architectural magazine cover shot.';
-
-  // Helper: building description with label overlay
-  function bDesc(b, withLabel){
-    const ht=b.ht?`, height ${b.ht}m`:'';
-    const label=withLabel?` with white text label "${b.label} ${b.w}×${b.h}m" on the roof`:'';
-    return `${b.label}: ${b.w}×${b.h}m building${ht}${label}${b.note?' ('+b.note+')':''}`;
+    envDesc = 'Green site surrounded by forest, paved parking lots with cars.';
+    if(lndDesign) envDesc += ' Manicured lawns, decorative hedges, paved walkways between buildings.';
+    if(lndWater) envDesc += ' Decorative fountains and small ponds.';
+    if(lndLighting) envDesc += ' Elegant park lighting along paths.';
+    if(lndKeepTrees) envDesc += ' Preserved mature trees around the complex.';
   }
 
-  // TOP VIEW
-  const topLines=[`Aerial top-down view at 70-80° angle of a premium sports and recreation complex.\n`];
-  topLines.push('BUILDINGS WITH LABELS ON ROOFS:');
-  Object.entries(zones).forEach(([z,zbs])=>{
-    topLines.push(`\n${ZN[z]||z}:`);
-    zbs.forEach((b,i)=>{
-      let pos='';
-      if(hs){const mx=Math.round(b.cx/APP.planScale),my=Math.round(b.cy/APP.planScale),deg=Math.round(b.angle*180/Math.PI);pos=` | position: ${mx}m from west, ${my}m from north | angle ${deg}°`;}
-      topLines.push(`  ${String.fromCharCode(65+i)}. ${bDesc(b,true)}${pos}`);
+  const STYLE = 'Photorealistic drone aerial photography, summer daytime, bright sunlight, soft shadows. Ultra-detailed textures. High-end sports resort aesthetic. 8K architectural visualization.';
+
+  // Build concise building list in English
+  function bldList(withContents){
+    const lines = [];
+    bs.forEach((b,i)=>{
+      const name = labelToEn(b.label);
+      const mat = bldMaterialEn(b);
+      const dims = `${b.w}x${b.h}m`;
+      const ht = b.ht ? `, ${b.ht}m tall` : '';
+      let line = `${i+1}. ${name} — ${mat} (${dims}${ht})`;
+      if(withContents){
+        const contents = hangarContentsEn(b);
+        if(contents.length) line += ' containing ' + contents.join(', ');
+      }
+      lines.push(line);
     });
-  });
-  topLines.push('\nMATERIALS: Sport hangars — dark grey sandwich panels (RAL 7024/7016) with glass roof sections showing courts inside. Wellness/glamping/restaurant — natural wood cladding (RAL 1001) with full-height glass. Infrastructure — grey metal.');
-  if(hasMapImage){
-    topLines.push('ENVIRONMENT: MATCH THE REAL SITE from loaded aerial/satellite photo. Preserve existing terrain, water, roads, surrounding structures. ' + (lndKeepTrees ? 'Keep existing trees except under new buildings.' : 'Redesign vegetation with professional landscaping.'));
+    return lines.join('\n');
+  }
+
+  // Build relative position description for reference mode
+  function bldPositions(){
+    if(!APP.planScale) return '';
+    const lines = [];
+    bs.forEach((b,i)=>{
+      const xm = Math.round(b.cx/APP.planScale);
+      const ym = Math.round(b.cy/APP.planScale);
+      lines.push(`${labelToEn(b.label)}: ${xm}m from left, ${ym}m from top`);
+    });
+    return '\nApproximate positions on site:\n' + lines.join('\n');
+  }
+
+  let topPrompt, nwPrompt, sePrompt;
+
+  if(hasRef){
+    // ═══ REFERENCE MODE — prompts for img2img with satellite photo ═══
+
+    // VARIANT: Top view with reference
+    topPrompt = `Transform this satellite/aerial photograph into a photorealistic architectural visualization. Replace the colored rectangular markers with realistic 3D buildings as described below. Keep the exact camera angle and all surrounding terrain from the original photo.
+
+Buildings to place (where the blue rectangles are marked):
+${bldList(false)}
+
+${envDesc}
+
+Each building must match its described material and dimensions. Shadows must be consistent with the sun direction visible in the original photo. ${STYLE}`;
+
+    // VARIANT: Perspective with reference
+    nwPrompt = `Using this aerial site photograph as the real environment, generate a photorealistic 45-degree perspective view of the sports complex being built on this exact location. The buildings should appear as if actually constructed on this terrain.
+
+Buildings on site:
+${bldList(true)}
+${bldPositions()}
+
+Match the lighting direction and season from the reference photo. Buildings should cast realistic shadows on the actual terrain. Dense landscaping between structures, walking paths with people.
+
+${STYLE}`;
+
+    // VARIANT: Cutaway with reference
+    sePrompt = `Based on this satellite photo of the development site, create an architectural cutaway visualization at 60 degrees. Show the buildings placed on the real terrain with partially transparent roofs revealing interior layouts.
+
+Buildings with visible interiors:
+${bldList(true)}
+
+Inside sport buildings: visible court markings, playing surfaces, equipment. Padel courts with glass walls. Tennis courts with white lines. The surrounding terrain and roads from the reference photo must remain visible and accurate.
+
+Architectural magazine quality, clean daylight, section-cut walls. ${STYLE}`;
+
   } else {
-    topLines.push('ENVIRONMENT: Dense green trees surrounding the complex, paved parking areas with cars, pedestrian paths, outdoor terraces with umbrellas.');
+    // ═══ ABSTRACT MODE — no reference image ═══
+
+    topPrompt = `Aerial top-down view at 70 degrees of a premium sports and recreation complex with ${bs.length} buildings.
+
+Buildings:
+${bldList(false)}
+
+Materials: Sport hangars have dark grey metal sandwich panel walls and roofs. Wellness and hospitality buildings have warm wood cladding with large glass windows. Each building has a clean white label sign on the roof.
+
+Environment: ${envDesc}
+
+${STYLE}`;
+
+    nwPrompt = `Aerial perspective view at 45 degrees of a premium sports complex, golden hour lighting, long dramatic shadows.
+
+${bs.length} buildings visible from foreground to background:
+${bldList(true)}
+
+Each building shows its unique architectural style: sport hangars with grey metal panels, wellness buildings with wood and glass. Dense green landscaping between buildings, walking paths, outdoor seating areas with umbrellas.
+
+${STYLE}`;
+
+    sePrompt = `Architectural cutaway axonometric view at 60 degrees of a sports complex. Roofs are partially transparent or removed, revealing interior layouts from above.
+
+Buildings with visible interiors:
+${bldList(true)}
+
+Inside each sport building: visible court markings, playing surfaces, equipment. Padel courts show glass walls and artificial turf. Tennis courts show white line markings. Ice arenas show rink with boards. Football fields show green turf with white markings.
+
+Walls shown in architectural section. Clean bright daylight. Exterior landscaping visible. Architectural magazine quality illustration.
+
+${STYLE}`;
   }
-  topLines.push(STYLE_BASE);
-  const topPrompt=topLines.join('\n');
-
-  // PERSPECTIVE VIEW (universal 45° angle)
-  const nwLines=[`Aerial perspective view at 45° angle of a premium sports and recreation complex.\n`];
-  nwLines.push('ALL BUILDINGS (from foreground to background):');
-  // Sort by position if available, otherwise just list all
-  const sorted=[...bs].sort((a,b)=>(a.cy||0)-(b.cy||0));
-  sorted.forEach((b,i)=>{
-    const ht=b.ht?`, height ${b.ht}m`:'';
-    nwLines.push(`  ${i+1}. ${b.label}: ${b.w}×${b.h}m${ht}${b.note?' ('+b.note+')':''}`);
-    // Include hangar contents — match by hangarId (from planner linkage) or fallback to label
-    const hangar=APP.hangars.find(h=>h.layout?.length && (b.hangarId===h.id || b.sourceId===('hangar_'+h.id)));
-    if(hangar && hangar.layout?.length){
-      nwLines.push('     INSIDE:');
-      hangar.layout.forEach(li=>{
-        const it=CATALOG.find(c=>c.id===li.itemId);
-        if(it) nwLines.push(`       - ${it.name} (${li.w}×${li.h}m)`);
-      });
-    }
-  });
-  nwLines.push('\nEach building visible with its architecture, materials, and surroundings.');
-  nwLines.push('Dense landscaping with trees and walking paths between buildings.');
-  nwLines.push('Warm golden hour lighting, summer, long shadows, premium resort aesthetic.');
-  nwLines.push(STYLE_BASE);
-  const nwPrompt=nwLines.join('\n');
-
-  // CUTAWAY AXONOMETRIC — roofs partially removed/transparent to show interiors
-  const seLines=[`Cutaway axonometric view (sectional axonometric / exploded roof plan) of a sports and recreation complex.\n`];
-  seLines.push('ARCHITECTURAL CUTAWAY: Roofs are partially removed or rendered as semi-transparent glass, revealing the interior layout of each building from above at ~60° angle.\n');
-  seLines.push('BUILDINGS WITH VISIBLE INTERIORS:');
-  bs.forEach((b,i)=>{
-    const ht=b.ht?`, height ${b.ht}m`:'';
-    seLines.push(`\n  ${i+1}. ${b.label} (${b.w}×${b.h}m${ht}):`);
-    seLines.push(`     Roof: cut away / semi-transparent, showing interior:`);
-    // Match hangar by ID linkage from planner
-    const matchH=APP.hangars.find(h=>{
-      if(!h.layout?.length) return false;
-      return b.hangarId===h.id || b.sourceId===('hangar_'+h.id);
-    });
-    if(matchH && matchH.layout?.length){
-      matchH.layout.forEach(li=>{
-        const it=CATALOG.find(c=>c.id===li.itemId);
-        if(it) seLines.push(`     - ${it.name} (${li.w}×${li.h}m) — visible court markings / field layout from above`);
-      });
-    } else {
-      seLines.push(`     - Interior visible: floor plan, equipment, activity zones`);
-    }
-  });
-  seLines.push('\nSTYLE: Technical architectural illustration meets photorealism. Walls shown in section (cut edges), floors fully visible with actual materials and markings. Exterior landscaping visible around buildings. Slight isometric projection.');
-  seLines.push('Each sport court/arena has recognizable markings visible from above (tennis lines, ice hockey circles, padel glass walls, football field markings).');
-  seLines.push('Summer daylight, clean and bright, architectural magazine quality. Labels optional.');
-  const sePrompt=seLines.join('\n');
 
   // Set outputs
   ['pTop','promptOut'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=topPrompt;});
   const pNW=document.getElementById('pNW');if(pNW)pNW.value=nwPrompt;
   const pSE=document.getElementById('pSE');if(pSE)pSE.value=sePrompt;
+
+  // Update reference indicator in UI
+  const refTag = document.getElementById('refModeTag');
+  if(refTag) refTag.style.display = hasRef ? 'inline' : 'none';
 }
 
 function copyPrompt(){
@@ -151,58 +311,151 @@ async function generateImage(promptId){
   const resolution = resEl ? resEl.value : '1K';
   const aspect = arEl ? arEl.value : '16:9';
 
+  // Check for reference image
+  const useRef = document.getElementById('refEnabled')?.checked && APP.renderRefImage;
+
   // Show status
   statusEl.style.display='flex';
   statusEl.innerHTML='<div class="spinner"></div><span>Отправка запроса на генерацию…</span>';
 
   try {
-    // 1. Create task
-    const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-      method:'POST',
-      headers:{'Authorization':'Bearer '+KIE_API_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'nano-banana-2',
-        input:{
-          prompt: promptEl.value.trim(),
-          image_input:[],
-          aspect_ratio: aspect,
-          resolution: resolution,
-          output_format:'png'
-        }
-      })
-    });
+    let imageUrl = null;
 
-    if(!createRes.ok){
-      const errText = await createRes.text();
-      statusEl.innerHTML=`<span style="color:var(--red)">API ошибка ${createRes.status}: ${errText.substring(0,200)}</span>`;
-      return;
+    if(useRef){
+      // img2img mode: try GPT-Image-1 (4o) which supports image editing via filesUrl
+      statusEl.innerHTML='<div class="spinner"></div><span>Загрузка reference + генерация (img2img)…</span>';
+      imageUrl = await generateImg2Img(promptEl.value.trim(), resolution, aspect, statusEl);
+    } else {
+      // Standard text-to-image via NanoBanana 2
+      imageUrl = await generateText2Img(promptEl.value.trim(), resolution, aspect, statusEl);
     }
 
-    const createData = await createRes.json();
-    console.log('KIE createTask response:', JSON.stringify(createData));
-
-    if(createData.code !== 200 && !createData.data?.taskId){
-      statusEl.innerHTML=`<span style="color:var(--red)">Ошибка: ${createData.msg||JSON.stringify(createData)}</span>`;
-      return;
-    }
-    const taskId = createData.data?.taskId || createData.data;
-    statusEl.innerHTML='<div class="spinner"></div><span>Генерация… taskId: '+taskId+'</span>';
-
-    // 2. Poll for result (every 5 sec, max 40 attempts = 200 sec)
-    const imageUrl = await pollTaskResult(taskId, statusEl, 40);
     if(!imageUrl){
-      if(!statusEl.innerHTML.includes('не удалась'))
-        statusEl.innerHTML='<span style="color:var(--red)">Таймаут генерации (200 сек). Попробуйте снова.</span>';
+      if(!statusEl.innerHTML.includes('не удалась') && !statusEl.innerHTML.includes('Таймаут'))
+        statusEl.innerHTML='<span style="color:var(--red)">Не удалось получить изображение.</span>';
       return;
     }
 
-    // 3. Add to gallery
+    // Add to gallery
     statusEl.style.display='none';
     addToGallery(promptId, imageUrl, resolution, aspect);
   } catch(err){
     console.error('generateImage error:', err);
     statusEl.innerHTML=`<span style="color:var(--red)">Сетевая ошибка: ${err.message}</span>`;
   }
+}
+
+// Standard text-to-image
+async function generateText2Img(prompt, resolution, aspect, statusEl){
+  const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+KIE_API_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'nano-banana-2',
+      input:{
+        prompt: prompt,
+        image_input:[],
+        aspect_ratio: aspect,
+        resolution: resolution,
+        output_format:'png'
+      }
+    })
+  });
+  if(!createRes.ok){
+    const errText = await createRes.text();
+    statusEl.innerHTML=`<span style="color:var(--red)">API ошибка ${createRes.status}: ${errText.substring(0,200)}</span>`;
+    return null;
+  }
+  const createData = await createRes.json();
+  console.log('KIE createTask response:', JSON.stringify(createData));
+  if(createData.code !== 200 && !createData.data?.taskId){
+    statusEl.innerHTML=`<span style="color:var(--red)">Ошибка: ${createData.msg||JSON.stringify(createData)}</span>`;
+    return null;
+  }
+  const taskId = createData.data?.taskId || createData.data;
+  statusEl.innerHTML='<div class="spinner"></div><span>Генерация… taskId: '+taskId+'</span>';
+  return await pollTaskResult(taskId, statusEl, 40);
+}
+
+// img2img with reference image via NanoBanana 2 image_input
+async function generateImg2Img(prompt, resolution, aspect, statusEl){
+  // Primary approach: pass base64 data URL in image_input array for NanoBanana 2
+  const refData = APP.renderRefImage;
+
+  const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+KIE_API_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'nano-banana-2',
+      input:{
+        prompt: prompt,
+        image_input: [refData],
+        aspect_ratio: aspect,
+        resolution: resolution,
+        output_format:'png'
+      }
+    })
+  });
+
+  if(!createRes.ok){
+    const errText = await createRes.text();
+    console.warn('img2img NanoBanana failed, trying GPT-4o fallback:', errText);
+    // Fallback: try GPT-4o image model
+    return await generateImg2ImgGpt4o(prompt, resolution, aspect, statusEl);
+  }
+
+  const createData = await createRes.json();
+  console.log('KIE img2img response:', JSON.stringify(createData));
+
+  if(createData.code !== 200 && !createData.data?.taskId){
+    console.warn('img2img NanoBanana rejected, trying GPT-4o:', createData.msg);
+    return await generateImg2ImgGpt4o(prompt, resolution, aspect, statusEl);
+  }
+
+  const taskId = createData.data?.taskId || createData.data;
+  statusEl.innerHTML='<div class="spinner"></div><span>img2img генерация… taskId: '+taskId+'</span>';
+  return await pollTaskResult(taskId, statusEl, 40);
+}
+
+// Fallback: GPT-Image-1 (4o) via KIE — supports filesUrl for reference images
+async function generateImg2ImgGpt4o(prompt, resolution, aspect, statusEl){
+  statusEl.innerHTML='<div class="spinner"></div><span>Попытка через GPT-4o Image… (img2img)</span>';
+
+  const refData = APP.renderRefImage;
+
+  const createRes = await fetch('https://api.kie.ai/api/v1/gpt4o-image/generate', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+KIE_API_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      prompt: prompt,
+      filesUrl: [refData],
+      size: aspect === '1:1' ? '1024x1024' : (aspect === '16:9' ? '1536x1024' : '1024x1536'),
+      quality: 'high'
+    })
+  });
+
+  if(!createRes.ok){
+    const errText = await createRes.text();
+    console.warn('GPT-4o image failed, falling back to text2img:', errText);
+    statusEl.innerHTML='<div class="spinner"></div><span>img2img недоступен, генерация без reference…</span>';
+    return await generateText2Img(prompt, resolution, aspect, statusEl);
+  }
+
+  const data = await createRes.json();
+  console.log('GPT-4o image response:', JSON.stringify(data).substring(0,500));
+
+  // GPT-4o may return taskId for async or direct result
+  if(data.data?.taskId){
+    statusEl.innerHTML='<div class="spinner"></div><span>GPT-4o генерация… taskId: '+data.data.taskId+'</span>';
+    return await pollTaskResult(data.data.taskId, statusEl, 40);
+  }
+  // Direct result
+  if(data.data?.url) return data.data.url;
+  if(data.data?.resultUrl) return data.data.resultUrl;
+
+  // If all else fails, fall back to text2img
+  statusEl.innerHTML='<div class="spinner"></div><span>img2img не вернул результат, генерация без reference…</span>';
+  return await generateText2Img(prompt, resolution, aspect, statusEl);
 }
 
 async function pollTaskResult(taskId, statusEl, maxAttempts=40){
@@ -222,35 +475,31 @@ async function pollTaskResult(taskId, statusEl, maxAttempts=40){
 
       if(data.code===200 && data.data){
         const d = data.data;
-        // Check for completion
-        if(d.successFlag===1 || d.status==='completed' || d.status==='success'){
-          const url = d.response?.resultImageUrl || d.response?.imageUrl || d.resultImageUrl || d.imageUrl;
-          if(url) return url;
-          // Try to find URL in response object
-          if(d.response && typeof d.response === 'object'){
-            const vals = Object.values(d.response);
-            const imgUrl = vals.find(v=>typeof v==='string' && (v.includes('http') && (v.includes('.png')||v.includes('.jpg')||v.includes('image'))));
-            if(imgUrl) return imgUrl;
+        if(d.state==='success'){
+          let url = null;
+          if(d.resultJson){
+            try {
+              const rj = typeof d.resultJson==='string' ? JSON.parse(d.resultJson) : d.resultJson;
+              url = rj.resultUrls?.[0] || rj.resultImageUrl || rj.imageUrl;
+            } catch(e){ console.warn('KIE resultJson parse error:', e); }
           }
-          if(d.response && typeof d.response === 'string' && d.response.includes('http')) return d.response;
-          // Completed but no URL found
-          console.warn('KIE completed but no image URL in response:', JSON.stringify(d.response));
+          if(!url) url = d.resultImageUrl || d.imageUrl;
+          if(url) return url;
+          console.warn('KIE success but no image URL:', JSON.stringify(d));
           statusEl.innerHTML=`<span style="color:var(--red)">Генерация завершена, но изображение не найдено в ответе</span>`;
           return null;
         }
-        // Check for failure
-        if(d.successFlag===0 || d.status==='failed' || d.status==='error'){
-          statusEl.innerHTML=`<span style="color:var(--red)">Генерация не удалась: ${d.errorMessage||d.failReason||'неизвестная ошибка'}</span>`;
+        if(d.state==='failed' || d.state==='error'){
+          statusEl.innerHTML=`<span style="color:var(--red)">Генерация не удалась: ${d.failMsg||d.failCode||'неизвестная ошибка'}</span>`;
           return null;
         }
-        // Still processing
-        const progress = d.progress ? ` (${d.progress}%)` : '';
-        statusEl.innerHTML=`<div class="spinner"></div><span>Генерация${progress}… (попытка ${i+1}/${maxAttempts})</span>`;
+        statusEl.innerHTML=`<div class="spinner"></div><span>Генерация… (попытка ${i+1}/${maxAttempts})</span>`;
       }
     } catch(e){
       console.warn('KIE poll error:', e.message);
     }
   }
+  statusEl.innerHTML='<span style="color:var(--red)">Таймаут генерации (200 сек). Попробуйте снова.</span>';
   return null;
 }
 
@@ -259,7 +508,8 @@ function addToGallery(promptId, imageUrl, resolution, aspect){
   const galleryEl = document.getElementById('gallery'+suffix);
   if(!APP.generatedImages[promptId]) APP.generatedImages[promptId]=[];
   const idx = APP.generatedImages[promptId].length;
-  APP.generatedImages[promptId].push({url:imageUrl, resolution, aspect, selected:false, ts:Date.now()});
+  const hasRef = !!APP.renderRefImage;
+  APP.generatedImages[promptId].push({url:imageUrl, resolution, aspect, selected:false, ts:Date.now(), ref:hasRef});
 
   const thumb = document.createElement('div');
   thumb.className='imgThumb';
@@ -269,7 +519,7 @@ function addToGallery(promptId, imageUrl, resolution, aspect){
   thumb.innerHTML=`
     <img src="${imageUrl}" alt="Render ${idx+1}" loading="lazy">
     <div class="imgLabel">
-      <span>#${idx+1} · ${resolution} · ${aspect}</span>
+      <span>#${idx+1} · ${resolution} · ${aspect}${hasRef?' · REF':''}</span>
       <button onclick="event.stopPropagation();window.open('${imageUrl}','_blank')">Открыть</button>
     </div>
   `;
@@ -277,10 +527,8 @@ function addToGallery(promptId, imageUrl, resolution, aspect){
 }
 
 function toggleSelectImage(promptId, idx, el){
-  // Deselect all in this gallery
   const suffix = PROMPT_MAP[promptId];
   document.querySelectorAll('#gallery'+suffix+' .imgThumb').forEach(t=>t.classList.remove('selected'));
-  // Select this one
   el.classList.add('selected');
   APP.generatedImages[promptId].forEach((img,i)=>img.selected=(i===idx));
 }

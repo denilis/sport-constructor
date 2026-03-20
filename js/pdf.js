@@ -34,18 +34,28 @@ function generatePDF(){
     });
     if(section.items.length) rows.push(section);
   });
-  // ABK
-  const abkArea=calcAbkArea();
-  if(abkArea>0){
-    const shellCost=abkArea*45000;
-    grandTotal+=shellCost; totalArea+=abkArea;
-    const infraSec=rows.find(r=>r.label.includes('Инфраструктура'));
-    if(infraSec){ infraSec.items.push({name:'АБК — строительство',variant:abkArea+' м² (вкл. коридоры)',qty:1,unit:'шт',price:shellCost,cost:shellCost,specs:[]}); infraSec.subtotal+=shellCost; }
+  // ABK buildings
+  const abks=APP.hangars.filter(h=>h.type==='abk');
+  if(abks.length){
+    let abkSec={label:'АБК',items:[],subtotal:0};
+    abks.forEach((h,i)=>{
+      const bt=BUILDING_TYPES.find(b=>b.id===h.type);
+      const area=h.w*h.h*(h.floors||1);
+      const footprint=h.w*h.h;
+      if(area>0){
+        const cost=area*(bt?bt.price:45000);
+        grandTotal+=cost; totalArea+=footprint;
+        abkSec.items.push({name:'АБК №'+(i+1),variant:h.w+'×'+h.h+'м, '+(h.floors||1)+' эт., '+area+' м²',qty:1,unit:'шт',price:cost,cost,specs:[]});
+        abkSec.subtotal+=cost;
+      }
+    });
+    if(abkSec.items.length) rows.push(abkSec);
   }
   // Hangars
-  if(APP.hangars.length){
+  const hangarsOnly=APP.hangars.filter(h=>h.type!=='abk');
+  if(hangarsOnly.length){
     let hSec={label:'Здания / Ангары',items:[],subtotal:0};
-    APP.hangars.forEach((h,i)=>{
+    hangarsOnly.forEach((h,i)=>{
       const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[0];
       const area=calcHangarArea(h);
       if(area>0){

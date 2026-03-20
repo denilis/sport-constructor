@@ -60,11 +60,31 @@ function closeHangarEditor(){
 
 function buildHEPalette(h){
   const pal = document.getElementById('hePalette');
+  const isAbk = h && h.type === 'abk';
+
+  if(isAbk){
+    // ABK mode: show ROOM_CATALOG items
+    const allRooms = [...(h.layout||[]), ...(h.layout2||[])];
+    let html = '<div class="hePalSection" style="color:var(--cyan)">🏢 Помещения АБК</div>';
+    ROOM_CATALOG.forEach(rm => {
+      const placed = allRooms.filter(li=>li.itemId===rm.id).length;
+      const placedArea = allRooms.filter(li=>li.itemId===rm.id).reduce((s,li)=>s+li.w*li.h, 0);
+      let countHtml = placed > 0 ? `<span class="hePalCount">${placed} шт · ${placedArea} м²</span>` : '';
+      html += `
+      <div class="hePalItem${HE.placing===rm.id?' active':''}" onclick="heStartPlace('${rm.id}')" title="${rm.name} (${rm.defaultW}×${rm.defaultH}м)">
+        <span>${rm.icon}</span>
+        <div class="hePalInfo"><b>${rm.name}</b><span class="hePalDims">${rm.defaultW}×${rm.defaultH}м</span>${countHtml}</div>
+      </div>`;
+    });
+    pal.innerHTML = html;
+    return;
+  }
+
+  // Sport hangar mode: show CATALOG items
   const sportItems = ['racket','team','athletics','fun'].flatMap(c=>CATALOG.filter(i=>i.cat===c && i.areaW>0 && i.areaL>0));
   const infra = CATALOG.filter(i=>['reception','cafe'].includes(i.id));
   const all = [...sportItems, ...infra];
 
-  // Split: selected in calculator vs others
   const selected = all.filter(it => itemTotalQty(it.id) > 0);
   const others = all.filter(it => itemTotalQty(it.id) <= 0);
 
@@ -83,7 +103,6 @@ function buildHEPalette(h){
     </div>`;
   };
 
-  // Category labels for groups
   const catLabels = {racket:'🎾 Ракеточные', team:'⚽ Командные', athletics:'🏃 Атлетика', fun:'🎪 Развлечения', glamping:'🏕 Глэмпинг', infra:'🏢 Инфраструктура'};
 
   let html = '';
@@ -93,7 +112,6 @@ function buildHEPalette(h){
   }
   if(others.length){
     html += '<div class="hePalSection other">Другие объекты</div>';
-    // Group others by category
     const grouped = {};
     others.forEach(it=>{
       const cat = ['reception','cafe'].includes(it.id) ? 'infra' : (it.cat||'other');
@@ -104,7 +122,6 @@ function buildHEPalette(h){
     for(const cat of catOrder){
       if(!grouped[cat] || !grouped[cat].length) continue;
       const label = catLabels[cat]||cat;
-      const gid = 'hePalGrp_'+cat;
       const isOpen = HE['_grp_'+cat]||false;
       html += `<div class="hePalGroup" onclick="HE['_grp_${cat}']=!HE['_grp_${cat}'];buildHEPalette(APP.hangars.find(x=>x.id===HE.hangarId));" style="cursor:pointer;padding:6px 8px;color:#c5a059;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.05);">
         <span style="font-size:10px;transition:transform .2s;transform:rotate(${isOpen?'90':'0'}deg)">▶</span> ${label} <span style="color:#555;font-weight:400;font-size:10px">(${grouped[cat].length})</span>
@@ -113,7 +130,6 @@ function buildHEPalette(h){
         html += grouped[cat].map(renderItem).join('');
       }
     }
-    // Any remaining categories
     for(const cat of Object.keys(grouped)){
       if(catOrder.includes(cat)) continue;
       html += grouped[cat].map(renderItem).join('');
@@ -251,12 +267,22 @@ function heStartPlace(itemId){
 function heAddItem(itemId, cx, cy){
   const h = APP.hangars.find(x=>x.id===HE.hangarId);
   if(!h) return;
-  const it = CATALOG.find(i=>i.id===itemId);
-  if(!it) return;
-  h.layout.push({itemId, x: cx - it.areaW/2, y: cy - it.areaL/2, w: it.areaW, h: it.areaL, angle:0});
-  // Sync items count
+
+  // Check if it's a room (ROOM_CATALOG) or sport item (CATALOG)
+  const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===itemId) : null;
+  const it = rm ? null : CATALOG.find(i=>i.id===itemId);
+  if(!rm && !it) return;
+
+  const w = rm ? rm.defaultW : it.areaW;
+  const hh = rm ? rm.defaultH : it.areaL;
+
+  h.layout.push({itemId, x: cx - w/2, y: cy - hh/2, w, h: hh, angle:0});
   syncHangarItems(h);
   HE.selected = h.layout.length-1;
+
+  // If ABK, sync rooms to calculator
+  if(h.type==='abk' && typeof syncAbkToCalc==='function') syncAbkToCalc(h);
+
   drawHangarInterior();
   updateHEProps();
 }
@@ -267,6 +293,7 @@ function heDeleteSelected(){
   h.layout.splice(HE.selected,1);
   HE.selected=null;
   syncHangarItems(h);
+  if(h.type==='abk' && typeof syncAbkToCalc==='function') syncAbkToCalc(h);
   drawHangarInterior();
   updateHEProps();
 }
@@ -363,10 +390,31 @@ function drawHangarInterior(){
       ctx.rotate(li.angle);
       ctx.translate(-(ix+iw/2), -(iy+ih/2));
     }
-    // Draw sport-specific view
-    const drawFn = getDrawFunc(li.itemId);
-    if(drawFn) drawFn(ctx, ix, iy, iw, ih);
-    else SPORT_DRAW.default(ctx, ix, iy, iw, ih, CATALOG.find(c=>c.id===li.itemId)?.name||li.itemId);
+    // Draw sport-specific or room view
+    const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===li.itemId) : null;
+    if(rm){
+      // Room rendering
+      const colors = {
+        rm_reception:'rgba(197,160,89,.3)', rm_cafe:'rgba(249,115,22,.3)', rm_locker_m:'rgba(59,130,246,.3)',
+        rm_locker_f:'rgba(236,72,153,.3)', rm_wc:'rgba(34,211,238,.3)', rm_coach:'rgba(139,92,246,.3)',
+        rm_storage:'rgba(100,116,139,.3)', rm_office:'rgba(234,179,8,.3)', rm_server:'rgba(75,85,99,.3)',
+        rm_medical:'rgba(239,68,68,.3)', rm_corridor:'rgba(156,163,175,.15)', rm_staircase:'rgba(168,85,247,.3)',
+        rm_heating:'rgba(239,68,68,.25)'
+      };
+      ctx.fillStyle=colors[li.itemId]||'rgba(34,211,238,.2)';
+      ctx.fillRect(ix,iy,iw,ih);
+      ctx.strokeStyle='rgba(34,211,238,.5)'; ctx.lineWidth=1; ctx.strokeRect(ix,iy,iw,ih);
+      ctx.fillStyle='#fff'; ctx.font=`${Math.min(12,ih/3)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(rm.icon, ix+iw/2, iy+ih/2-6);
+      ctx.font=`${Math.min(9,ih/5)}px sans-serif`; ctx.fillStyle='#ccc';
+      ctx.fillText(rm.name, ix+iw/2, iy+ih/2+6);
+      ctx.font='8px monospace'; ctx.fillStyle='#888';
+      ctx.fillText(`${li.w}×${li.h}м`, ix+iw/2, iy+ih-4);
+    } else {
+      const drawFn = getDrawFunc(li.itemId);
+      if(drawFn) drawFn(ctx, ix, iy, iw, ih);
+      else SPORT_DRAW.default(ctx, ix, iy, iw, ih, CATALOG.find(c=>c.id===li.itemId)?.name||li.itemId);
+    }
 
     // Selection highlight + rotation handles
     if(idx===HE.selected){
@@ -426,18 +474,28 @@ function drawHangarInterior(){
 
   // Ghost (placing mode)
   if(HE.placing){
-    const it = CATALOG.find(i=>i.id===HE.placing);
-    if(it){
+    const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===HE.placing) : null;
+    const it = rm ? null : CATALOG.find(i=>i.id===HE.placing);
+    const gw_ = rm ? rm.defaultW : (it ? it.areaW : 0);
+    const gh_ = rm ? rm.defaultH : (it ? it.areaL : 0);
+    if(gw_ && gh_){
       const mx=(HE.mouse.x-px)/ppm, my=(HE.mouse.y-py)/ppm;
-      const gx=hx+(mx-it.areaW/2)*ppm, gy=hy+(my-it.areaL/2)*ppm;
-      const gw=it.areaW*ppm, gh=it.areaL*ppm;
+      const gx=hx+(mx-gw_/2)*ppm, gy=hy+(my-gh_/2)*ppm;
+      const gw=gw_*ppm, gh=gh_*ppm;
       ctx.globalAlpha=0.5;
-      const drawFn=getDrawFunc(HE.placing);
-      if(drawFn) drawFn(ctx, gx, gy, gw, gh);
-      else SPORT_DRAW.default(ctx, gx, gy, gw, gh, it.name);
+      if(rm){
+        // Draw room ghost
+        ctx.fillStyle='rgba(34,211,238,.25)'; ctx.fillRect(gx,gy,gw,gh);
+        ctx.strokeStyle='rgba(34,211,238,.6)'; ctx.lineWidth=1; ctx.strokeRect(gx,gy,gw,gh);
+        ctx.fillStyle='#fff'; ctx.font='12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(rm.icon+' '+rm.name, gx+gw/2, gy+gh/2);
+      } else {
+        const drawFn=getDrawFunc(HE.placing);
+        if(drawFn) drawFn(ctx, gx, gy, gw, gh);
+        else SPORT_DRAW.default(ctx, gx, gy, gw, gh, it.name);
+      }
       ctx.globalAlpha=1;
-      // Distance indicators for ghost too
-      const ghostLi = {x: mx-it.areaW/2, y: my-it.areaL/2, w: it.areaW, h: it.areaL};
+      const ghostLi = {x: mx-gw_/2, y: my-gh_/2, w: gw_, h: gh_};
       heDrawDistancesForRect(ctx, h, ghostLi, -1, hx, hy, ppm);
     }
   }
@@ -525,11 +583,28 @@ function updateHEProps(){
     return;
   }
   const li=h.layout[HE.selected];
-  const it=CATALOG.find(c=>c.id===li.itemId);
+  const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===li.itemId) : null;
+  const it = rm ? null : CATALOG.find(c=>c.id===li.itemId);
+  const name = rm ? rm.name : (it?.name || li.itemId);
+  const nameColor = rm ? 'var(--cyan)' : 'var(--gold2)';
   const deg=Math.round((li.angle||0)*180/Math.PI);
+
+  // For rooms, allow resizing
+  const resizeHtml = rm ? `
+    <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+      <label style="font-size:9px;color:var(--tx3);">Размер:</label>
+      <input type="number" value="${li.w}" min="2" max="30" step="1" style="width:40px;padding:2px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:3px;font-size:10px;text-align:center"
+        onchange="heResizeSelected(+this.value,null)">
+      <span style="color:#888;font-size:9px">×</span>
+      <input type="number" value="${li.h}" min="2" max="30" step="1" style="width:40px;padding:2px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:3px;font-size:10px;text-align:center"
+        onchange="heResizeSelected(null,+this.value)">
+      <span style="font-size:9px;color:var(--tx3)">м</span>
+    </div>` : '';
+
   el.innerHTML=`
-    <div style="font-size:11px;font-weight:600;color:var(--gold2);margin-bottom:6px;">${it?.name||li.itemId}</div>
+    <div style="font-size:11px;font-weight:600;color:${nameColor};margin-bottom:6px;">${name}</div>
     <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${li.w}×${li.h}м = ${li.w*li.h} м²</div>
+    ${resizeHtml}
     <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
       <label style="font-size:9px;color:var(--tx3);">Угол:</label>
       <input type="range" min="-180" max="180" value="${deg}" style="flex:1;accent-color:var(--gold);"
@@ -542,6 +617,17 @@ function updateHEProps(){
       <button class="pBtn red" onclick="heDeleteSelected()">Удалить</button>
     </div>
   `;
+}
+
+function heResizeSelected(w, hVal){
+  const h = APP.hangars.find(x=>x.id===HE.hangarId);
+  if(!h||HE.selected===null) return;
+  const li = h.layout[HE.selected];
+  if(w!==null) li.w = Math.max(1, w);
+  if(hVal!==null) li.h = Math.max(1, hVal);
+  if(h.type==='abk' && typeof syncAbkToCalc==='function') syncAbkToCalc(h);
+  drawHangarInterior();
+  updateHEProps();
 }
 
 function heRotateSelected(deg){
