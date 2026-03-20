@@ -635,6 +635,25 @@ function abkAutoCalcRooms() {
 
   const totalArea = usefulArea + corridorArea;
 
+  // Рекомендованный размер: учесть реальные ширины комнат в 2 рядах
+  const realRooms = rooms.filter(r => r.id !== 'rm_corridor');
+  // Sort by area descending, distribute into 2 rows
+  const sorted = [...realRooms].sort((a,b) => b.area - a.area);
+  let rowW1 = 0, rowW2 = 0;
+  sorted.forEach(r => {
+    const rw = r.split ? r.split.reduce((s,sp) => s + sp.w + 0.5, 0) : r.w + 0.5;
+    if(rowW1 <= rowW2) rowW1 += rw; else rowW2 += rw;
+  });
+  const maxRowW = Math.max(rowW1, rowW2);
+  const recFloors = totalArea > 300 ? 2 : 1;
+  const wo = 1; // wallOffset
+  const corridorWm = 2; // corridor width
+  const neededW = Math.ceil(maxRowW / (recFloors > 1 ? 1.5 : 1)) + wo * 2 + 2; // +2 for stair
+  const recW = Math.max(24, neededW);
+  // Height: two rows + corridor + walls
+  const maxRoomH = Math.max(...realRooms.map(r => r.h));
+  const recH = Math.max(12, Math.ceil(maxRoomH * 2 + corridorWm + wo * 2 + 1));
+
   return {
     shift,
     totalPlaces,
@@ -644,10 +663,9 @@ function abkAutoCalcRooms() {
     corridorArea,
     totalArea,
     courts,
-    // Рекомендованный размер АБК
-    recW: Math.max(24, Math.ceil(Math.sqrt(totalArea * 2.5))),
-    recH: Math.max(12, Math.ceil(totalArea / Math.max(24, Math.ceil(Math.sqrt(totalArea * 2.5))))),
-    recFloors: totalArea > 300 ? 2 : 1,
+    recW,
+    recH,
+    recFloors,
   };
 }
 
@@ -739,84 +757,175 @@ function showAbkAutoCalcModal(abkId) {
 }
 
 // Применить авто-расчёт: задать размеры АБК и разместить комнаты
+// Два режима:
+// A) АБК без фиксированного размера → размер подгоняется под комнаты
+// B) АБК с фиксированным размером → комнаты масштабируются пропорционально
 function applyAbkAutoCalc(abkId) {
   const h = APP.hangars.find(x => x.id === abkId);
   if(!h || h.type !== 'abk') return;
   const result = abkAutoCalcRooms();
   if(!result) return;
 
-  // Обновить размеры АБК
-  h.w = result.recW;
-  h.h = result.recH;
-  h.floors = result.recFloors;
+  // Определяем режим: если пользователь уже задал размеры вручную и они отличаются
+  // от рекомендованных — режим B (масштабирование под фиксированный АБК)
+  const userW = h.w, userH = h.h, userFloors = h.floors || 1;
+  const userArea = userW * userH * userFloors;
+  const recArea = result.totalArea;
+  const isFixedSize = h.layout && h.layout.length > 0; // уже были комнаты = пользователь задавал размер
+
+  // Режим A: подгоняем АБК под комнаты
+  if(!isFixedSize) {
+    h.w = result.recW;
+    h.h = result.recH;
+    h.floors = result.recFloors;
+  }
+  // Режим B: масштабируем комнаты под АБК
+  // scaleFactor > 1 = АБК больше → увеличиваем комнаты
+  // scaleFactor < 1 = АБК меньше → уменьшаем (но не ниже минимумов)
+
+  const wo = h.wallOffset || 1;
+  const corridorW = 2; // ширина коридора в метрах
+  const floors = h.floors || 1;
+  const usableW = h.w - wo * 2;
+  const usableH = h.h - wo * 2;
+  const usableArea = usableW * usableH * floors;
+
   h.layout = [];
   h.layout2 = [];
 
-  // Авторазмещение комнат на этаже 1 (простое последовательное, с учётом wallOffset)
-  const wo = h.wallOffset || 1;
-  const gap = h.objectGap || 0.5;
-  let curX = wo, curY = wo;
-  let rowH = 0;
-
-  const placeRoom = (itemId, w, rh, floor) => {
-    const layout = floor === 2 ? (h.layout2 || (h.layout2 = [])) : h.layout;
-    // Check if fits in current row
-    if(curX + w > h.w - wo) {
-      // Next row
-      curX = wo;
-      curY += rowH + gap;
-      rowH = 0;
-    }
-    // Check if fits vertically
-    if(curY + rh > h.h - wo) return false; // doesn't fit
-
-    layout.push({ itemId, x: curX, y: curY, w, h: rh, angle: 0 });
-    curX += w + gap;
-    rowH = Math.max(rowH, rh);
-    return true;
-  };
-
-  let currentFloor = 1;
+  // Собрать все комнаты (без коридоров — они будут физически)
+  let roomList = [];
   result.rooms.forEach(r => {
-    const rm = ROOM_CATALOG.find(x => x.id === r.id);
-    if(!rm) return;
-
+    if(r.id === 'rm_corridor') return; // коридоры размещаем отдельно
     if(r.split && r.split.length > 1) {
-      // Place split rooms separately
-      r.split.forEach(s => {
-        if(!placeRoom(r.id, s.w, s.h, currentFloor)) {
-          if(result.recFloors >= 2 && currentFloor === 1) {
-            currentFloor = 2;
-            curX = wo; curY = wo; rowH = 0;
-            placeRoom(r.id, s.w, s.h, currentFloor);
-          }
-        }
-      });
+      r.split.forEach(s => roomList.push({ id: r.id, area: s.area, w: s.w, h: s.h }));
     } else {
-      if(!placeRoom(r.id, r.w, r.h, currentFloor)) {
-        if(result.recFloors >= 2 && currentFloor === 1) {
-          currentFloor = 2;
-          curX = wo; curY = wo; rowH = 0;
-          placeRoom(r.id, r.w, r.h, currentFloor);
-        }
-      }
+      roomList.push({ id: r.id, area: r.area, w: r.w, h: r.h });
     }
   });
 
-  // Если 2 этажа — добавить лестницу на оба этажа
-  if(h.floors >= 2) {
-    const stairRm = ROOM_CATALOG.find(r => r.isStaircase);
-    if(stairRm) {
-      const sw = stairRm.defaultW, sh = stairRm.defaultH;
-      // Разместить у входа (нижний правый угол этажа 1)
-      const sx = h.w - wo - sw, sy = h.h - wo - sh;
-      h.layout.push({ itemId: stairRm.id, x: sx, y: sy, w: sw, h: sh, angle: 0 });
-      h.layout2.push({ itemId: stairRm.id, x: sx, y: sy, w: sw, h: sh, angle: 0 });
+  // Масштабирование комнат под доступное пространство
+  if(isFixedSize) {
+    // Рассчитать высоту рядов (без коридора и стен)
+    const rowH = (usableH - corridorW) / 2;
+    // Распределить комнаты по 2 рядам для оценки ширины
+    const sorted = [...roomList].sort((a,b) => b.area - a.area);
+    let rw1 = 0, rw2 = 0, row1 = [], row2 = [];
+    sorted.forEach(r => {
+      if(rw1 <= rw2) { row1.push(r); rw1 += r.w + 0.5; }
+      else { row2.push(r); rw2 += r.w + 0.5; }
+    });
+    const maxRowW = Math.max(rw1, rw2);
+    const stairReserve = (floors >= 2 ? 4 : 0);
+    const availRowW = usableW - stairReserve;
+    // Масштабировать ширины так, чтобы максимальный ряд вписался
+    if(maxRowW > 0) {
+      const wScale = availRowW / maxRowW;
+      const hScale = rowH / Math.max(...roomList.map(r => r.h));
+      const scale = Math.min(wScale, hScale);
+      if(scale !== 1 && scale > 0.3) {
+        roomList.forEach(r => {
+          r.w = Math.max(2, Math.round(r.w * scale * 10) / 10);
+          r.h = Math.max(2, Math.min(rowH, Math.round(r.h * scale * 10) / 10));
+          r.area = r.w * r.h;
+        });
+      }
     }
   }
 
+  // Лестница — зарезервировать место в правом нижнем углу обоих этажей
+  const stairRm = ROOM_CATALOG.find(r => r.isStaircase);
+  const hasStairs = floors >= 2 && stairRm;
+  const stairW = hasStairs ? stairRm.defaultW : 0;
+  const stairH = hasStairs ? stairRm.defaultH : 0;
+
+  // ═══ КОРИДОРНАЯ ПЛАНИРОВКА ═══
+  // Коридор идёт горизонтально по центру здания
+  // Комнаты размещаются в два ряда: сверху и снизу от коридора
+  const corridorY = wo + (usableH - corridorW) / 2; // Y-позиция коридора
+  const topRowY = wo;                                // верхний ряд
+  const topRowH = corridorY - wo;                    // высота верхнего ряда
+  const botRowY = corridorY + corridorW;              // нижний ряд
+  const botRowH = h.h - wo - botRowY;                // высота нижнего ряда
+
+  // Функция размещения комнат в ряду
+  const placeInRow = (rooms, rowY, rowH, floor) => {
+    const layout = floor === 2 ? (h.layout2 || (h.layout2 = [])) : h.layout;
+    let curX = wo;
+    const maxX = h.w - wo - (hasStairs && floor <= 2 ? stairW + 0.5 : 0);
+
+    rooms.forEach(r => {
+      // Подгоняем высоту комнаты под высоту ряда
+      let rw = r.w, rh = Math.min(r.h, rowH);
+      if(rh < r.h) rw = Math.ceil(r.area / rh); // сохраняем площадь
+
+      if(curX + rw > maxX) return; // не влезает
+      layout.push({ itemId: r.id, x: curX, y: rowY, w: rw, h: rh, angle: 0 });
+      curX += rw + 0.5;
+    });
+  };
+
+  // Распределить комнаты по рядам: крупные наверх, мелкие вниз
+  roomList.sort((a, b) => b.area - a.area);
+  const topRooms = [], botRooms = [];
+  let topFill = 0, botFill = 0;
+
+  roomList.forEach(r => {
+    if(topFill <= botFill) { topRooms.push(r); topFill += r.w; }
+    else { botRooms.push(r); botFill += r.w; }
+  });
+
+  // Размещаем на этаж 1 или распределяем по этажам
+  if(floors >= 2) {
+    // Этаж 1: общие + санитарные (ближе к входу)
+    const floor1Rooms = [], floor2Rooms = [];
+    const floor1Ids = new Set(['rm_reception','rm_cafe','rm_office','rm_coach','rm_medical',
+      'rm_locker_m','rm_locker_f','rm_locker_k','rm_shower','rm_wc']);
+    roomList.forEach(r => {
+      if(floor1Ids.has(r.id)) floor1Rooms.push(r);
+      else floor2Rooms.push(r);
+    });
+    // Если этаж 2 пустой — перекинуть половину с этажа 1
+    if(floor2Rooms.length === 0) {
+      const half = Math.ceil(floor1Rooms.length / 2);
+      floor2Rooms.push(...floor1Rooms.splice(half));
+    }
+
+    const topF1 = [], botF1 = [];
+    let tf1 = 0, bf1 = 0;
+    floor1Rooms.forEach(r => { if(tf1 <= bf1){topF1.push(r);tf1+=r.w;} else {botF1.push(r);bf1+=r.w;} });
+    placeInRow(topF1, topRowY, topRowH, 1);
+    placeInRow(botF1, botRowY, botRowH, 1);
+
+    const topF2 = [], botF2 = [];
+    let tf2 = 0, bf2 = 0;
+    floor2Rooms.forEach(r => { if(tf2 <= bf2){topF2.push(r);tf2+=r.w;} else {botF2.push(r);bf2+=r.w;} });
+    placeInRow(topF2, topRowY, topRowH, 2);
+    placeInRow(botF2, botRowY, botRowH, 2);
+  } else {
+    placeInRow(topRooms, topRowY, topRowH, 1);
+    placeInRow(botRooms, botRowY, botRowH, 1);
+  }
+
+  // Коридор — физический объект на каждом этаже
+  for(let f = 1; f <= floors; f++) {
+    const layout = f === 2 ? (h.layout2 || (h.layout2 = [])) : h.layout;
+    layout.push({
+      itemId: 'rm_corridor', x: wo, y: corridorY,
+      w: h.w - wo * 2, h: corridorW, angle: 0
+    });
+  }
+
+  // Лестница — на обоих этажах, правый нижний угол
+  if(hasStairs) {
+    const sx = h.w - wo - stairW, sy = h.h - wo - stairH;
+    h.layout.push({ itemId: stairRm.id, x: sx, y: sy, w: stairW, h: stairH, angle: 0 });
+    h.layout2.push({ itemId: stairRm.id, x: sx, y: sy, w: stairW, h: stairH, angle: 0 });
+  }
+
   syncAbkToCalc(h);
-  document.getElementById('abkAutoCalcModal').style.display = 'none';
+  const modal = document.getElementById('abkAutoCalcModal');
+  if(modal) modal.style.display = 'none';
   renderHangars();
   recalc();
 }
@@ -1015,10 +1124,25 @@ function renderHangars() {
       if(it) selectedH+=`<div class="hSel"><span>${it.name} × ${d.count}</span><em>${it.areaW*it.areaL*d.count} м²</em><button class="rmBtn" onclick="removeFromHangar(${h.id},'${id}')">×</button></div>`;
     });
     const calcSelected = itemsInCat.filter(it => itemTotalQty(it.id) > 0);
-    const calcOthers = itemsInCat.filter(it => itemTotalQty(it.id) <= 0);
     let pickerH = '';
     if(calcSelected.length) pickerH += '<div class="hPickerLabel">Выбранные:</div>' + calcSelected.map(it=>`<div class="hItem hItemSel" onclick="addToHangar(${h.id},'${it.id}')">${it.icon} ${it.name} <span class="hItemQty">×${itemTotalQty(it.id)}</span></div>`).join('');
-    if(calcOthers.length) pickerH += '<div class="hPickerLabel">Другие:</div>' + calcOthers.map(it=>`<div class="hItem" onclick="addToHangar(${h.id},'${it.id}')">${it.icon} ${it.name}</div>`).join('');
+    // Grouped by category with collapsible sections
+    const hCatNames={racket:'🎾 Ракеточные',team:'⚽ Командные',athletics:'🏃 Атлетика',fun:'🎢 Развлечения'};
+    const hCats=['racket','team','athletics','fun'];
+    hCats.forEach(cat=>{
+      const catItems = CATALOG.filter(i=>i.cat===cat && itemTotalQty(i.id)<=0);
+      if(!catItems.length) return;
+      const gid = 'hGrp_'+h.id+'_'+cat;
+      pickerH += `<div class="hPickerGroup">
+        <div class="hPickerGroupHead" onclick="(function(el){var b=el.nextElementSibling;var a=el.querySelector('.hGrpArr');if(b.style.display==='none'){b.style.display='flex';a.textContent='▾'}else{b.style.display='none';a.textContent='▸'}})(this)" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0;margin-top:4px;user-select:none">
+          <span class="hGrpArr" style="color:var(--cyan);font-size:11px">▸</span>
+          <span style="font-size:11px;color:var(--cyan);font-weight:600">${hCatNames[cat]}</span>
+          <span style="font-size:10px;color:#555">(${catItems.length})</span>
+        </div>
+        <div style="display:none;flex-wrap:wrap;gap:4px;padding:2px 0 4px 12px">`
+        + catItems.map(it=>`<div class="hItem" onclick="addToHangar(${h.id},'${it.id}')">${it.icon} ${it.name}</div>`).join('')
+        + `</div></div>`;
+    });
     // Filter out ABK type from the building type selector
     const hangarTypes = BUILDING_TYPES.filter(b=>!b.isAbk);
     // Capital buildings (wood, concrete) support floors
