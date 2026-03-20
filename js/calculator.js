@@ -688,11 +688,13 @@ function renderSettings() {
   const cats=['racket','team','athletics','fun','glamping','wellness','infra','prep'];
   const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес / СПА',infra:'Инфраструктура',prep:'Благоустройство'};
   const f=window._settingsFilter;
-  const filteredCats=f==='all'?cats:cats.filter(c=>c===f);
-  // Filter bar
+  const baseCats = APP.extendedMode ? cats : cats.filter(c => !EXTENDED_CATS.has(c));
+  const filteredCats=f==='all'?baseCats:baseCats.filter(c=>c===f);
+  // Filter bar — respect extended mode
+  const visibleCats = APP.extendedMode ? cats : cats.filter(c => !EXTENDED_CATS.has(c));
   let html='<div style="display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--bd);flex-shrink:0">';
   html+=`<button onclick="window._settingsFilter='all';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${f==='all'?'var(--gold)':'var(--bd)'};background:${f==='all'?'rgba(197,160,89,.15)':'transparent'};color:${f==='all'?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">Все</button>`;
-  cats.forEach(cat=>{
+  visibleCats.forEach(cat=>{
     const active=f===cat;
     html+=`<button onclick="window._settingsFilter='${cat}';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${active?'var(--gold)':'var(--bd)'};background:${active?'rgba(197,160,89,.15)':'transparent'};color:${active?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">${catNames[cat]}</button>`;
   });
