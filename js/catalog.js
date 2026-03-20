@@ -227,20 +227,88 @@ const BUILDING_TYPES = [
 // areaPerUnit: если infra-item в «мест», сколько м² на 1 место
 // ═══════════════════════════════════════════════════════
 const ROOM_CATALOG = [
-  {id:'rm_reception',name:'Рецепция',icon:'💁',minArea:20,defaultW:8,defaultH:5,infraLink:'reception'},
-  {id:'rm_cafe',name:'Кафе / Бар',icon:'☕',minArea:30,defaultW:10,defaultH:6,infraLink:'cafe'},
-  {id:'rm_locker_m',name:'Раздевалка (М)',icon:'🚹',minArea:15,defaultW:6,defaultH:5,infraLink:'locker_m',areaPerUnit:2.5},
-  {id:'rm_locker_f',name:'Раздевалка (Ж)',icon:'🚺',minArea:15,defaultW:6,defaultH:5,infraLink:'locker_f',areaPerUnit:2.5},
-  {id:'rm_wc',name:'Санузлы / Душевые',icon:'🚿',minArea:10,defaultW:5,defaultH:4,infraLink:'wc'},
-  {id:'rm_coach',name:'Тренерская',icon:'📋',minArea:12,defaultW:5,defaultH:4,infraLink:'coach_room'},
-  {id:'rm_storage',name:'Склад / Инвентарная',icon:'📦',minArea:8,defaultW:4,defaultH:4,infraLink:'storage'},
-  {id:'rm_office',name:'Офис администрации',icon:'🏢',minArea:15,defaultW:6,defaultH:5},
-  {id:'rm_server',name:'Серверная / ИТ',icon:'🖥️',minArea:6,defaultW:3,defaultH:3},
-  {id:'rm_medical',name:'Медицинский кабинет',icon:'🏥',minArea:12,defaultW:5,defaultH:4},
-  {id:'rm_corridor',name:'Коридор',icon:'🚪',minArea:0,defaultW:10,defaultH:2},
-  {id:'rm_staircase',name:'Лестничная клетка',icon:'🪜',minArea:6,defaultW:3,defaultH:3},
-  {id:'rm_heating',name:'Котельная / ИТП',icon:'🔥',minArea:10,defaultW:4,defaultH:4,infraLink:'heating'},
+  // Приём / Общие
+  {id:'rm_reception',name:'Рецепция',icon:'💁',minArea:20,defaultW:8,defaultH:5,infraLink:'reception',group:'common'},
+  {id:'rm_cafe',name:'Кафе / Бар',icon:'☕',minArea:30,defaultW:10,defaultH:6,infraLink:'cafe',group:'common'},
+  {id:'rm_office',name:'Офис администрации',icon:'🏢',minArea:15,defaultW:6,defaultH:5,group:'common'},
+  {id:'rm_coach',name:'Тренерская',icon:'📋',minArea:12,defaultW:5,defaultH:4,infraLink:'coach_room',group:'common'},
+  {id:'rm_medical',name:'Медицинский кабинет',icon:'🏥',minArea:12,defaultW:5,defaultH:4,group:'common'},
+  // Раздевалки / Санузлы
+  {id:'rm_locker_m',name:'Раздевалка (М)',icon:'🚹',minArea:15,defaultW:6,defaultH:5,infraLink:'locker_m',areaPerUnit:2.5,group:'sanitary'},
+  {id:'rm_locker_f',name:'Раздевалка (Ж)',icon:'🚺',minArea:15,defaultW:6,defaultH:5,infraLink:'locker_f',areaPerUnit:2.5,group:'sanitary'},
+  {id:'rm_locker_k',name:'Раздевалка (Дет.)',icon:'👶',minArea:12,defaultW:5,defaultH:4,group:'sanitary'},
+  {id:'rm_shower',name:'Душевая',icon:'🚿',minArea:8,defaultW:4,defaultH:4,group:'sanitary'},
+  {id:'rm_wc',name:'Санузел (WC)',icon:'🚻',minArea:6,defaultW:3,defaultH:3,infraLink:'wc',group:'sanitary'},
+  // Технические
+  {id:'rm_heating',name:'Котельная / ИТП',icon:'🔥',minArea:10,defaultW:4,defaultH:4,infraLink:'heating',group:'tech'},
+  {id:'rm_electrical',name:'Щитовая (электро)',icon:'⚡',minArea:6,defaultW:3,defaultH:3,group:'tech'},
+  {id:'rm_server',name:'Серверная / ИТ',icon:'🖥️',minArea:6,defaultW:3,defaultH:3,group:'tech'},
+  {id:'rm_storage',name:'Склад / Инвентарная',icon:'📦',minArea:8,defaultW:4,defaultH:4,infraLink:'storage',group:'tech'},
+  // Коммуникации / Служебные
+  {id:'rm_corridor',name:'Коридор',icon:'🚪',minArea:0,defaultW:10,defaultH:2,group:'service'},
+  {id:'rm_staircase',name:'Лестничная клетка',icon:'🪜',minArea:6,defaultW:3,defaultH:4,isStaircase:true,group:'service'},
 ];
+
+// ═══════════════════════════════════════════════════════
+// ABK_NORMS — редактируемые нормативы СП 31-112-2004
+// Все коэффициенты можно изменить через UI (вкладка Здания)
+// ═══════════════════════════════════════════════════════
+var ABK_NORMS_DEFAULT = {
+  // Загрузка и распределение
+  loadFactor: 0.80,        // загрузка (80%)
+  lockerMultiplier: 1.5,   // коэфф. шкафчиков (×1.5 от смены)
+  malePct: 0.50,           // % мужчин
+  femalePct: 0.35,         // % женщин
+  childPct: 0.15,          // % детей
+  // Раздевалки (м²/место по кол-ву мест)
+  lockerAreaOver50: 1.0,   // >50 мест
+  lockerArea30to50: 1.2,   // 30–50 мест
+  lockerAreaUnder30: 1.3,  // <30 мест
+  lockerExtra: 0.2,        // доп. площадь на шкаф (м²)
+  // Душевые
+  showerPersonsPer: 5,     // 1 рожок на N чел.
+  showerAreaPerHead: 2.5,  // м² на рожок
+  // Санузлы
+  wcMalePerPersons: 30,    // 1 унитаз на N чел. (М)
+  wcFemalePerPersons: 15,  // 1 унитаз на N чел. (Ж)
+  wcAreaPerUnit: 2.0,      // м² на единицу
+  // Вестибюль / Рецепция
+  receptionPerPerson: 0.5, // м²/занимающегося
+  receptionMin: 20,        // мин. площадь м²
+  // Кафе
+  cafePctOfShift: 0.20,    // % от смены (посадочные места)
+  cafeAreaPerSeat: 1.8,    // м²/посадочное место
+  cafeMin: 30,             // мин. площадь м²
+  // Тренерская
+  coachBase: 14,           // базовая площадь (м²)
+  coachPerExtra: 4,        // м² на доп. тренера
+  coachRatioPerCourt: 0.5, // тренеров на корт
+  // Медкабинет
+  medicalArea: 14,         // м² (СП табл.11)
+  // Офис
+  officePerWorkplace: 7,   // м² на рабочее место
+  officeMinWorkplaces: 2,  // мин. рабочих мест
+  officeCourtsPerWP: 4,    // кортов на 1 рабочее место
+  // Склад
+  storagePerPerson: 0.15,  // м²/занимающегося
+  storageMin: 8,           // мин. площадь м²
+  // Технические
+  heatingArea: 12,         // котельная/ИТП, м²
+  electricalArea: 8,       // щитовая, м²
+  serverArea: 6,           // серверная, м²
+  // Коридоры
+  corridorPct: 0.28,       // % от полезной площади
+  // Минимальные площади помещений
+  lockerMMin: 15,
+  lockerFMin: 15,
+  lockerKMin: 12,
+  showerMin: 8,
+  wcMin: 6,
+  officeMin: 15,
+};
+
+// Рабочая копия (изменяемая через UI)
+if(!window.ABK_NORMS) window.ABK_NORMS = JSON.parse(JSON.stringify(ABK_NORMS_DEFAULT));
 
 const ZONE_COLORS = {
   sport: {s:'#3b82f6',f:'rgba(59,130,246,.18)',t:'#93c5fd'},

@@ -373,13 +373,16 @@ function recalc() {
       html+=`<div class="sumSection"><div class="sumSect">Здания / Ангары</div>`;
       hangars.forEach((h,i)=>{
         const bt=BUILDING_TYPES.find(b=>b.id===h.type)||BUILDING_TYPES[0];
-        const area=calcHangarArea(h);
+        const footArea=calcHangarArea(h);
+        const isCapital = (h.type==='wood'||h.type==='concrete');
+        const hFloors = isCapital ? (h.floors||1) : 1;
+        const area = footArea * hFloors;
         if(area>0){
           const cost=area*bt.price;
           total+=cost;
-          plotArea+=area;
+          plotArea+=footArea; // plot area = footprint only
           html+=`<div class="sumItem">
-            <div><div class="sn">Ангар №${i+1}</div><span class="sm">${bt.name}, ${area} м²</span></div>
+            <div><div class="sn">Ангар №${i+1}</div><span class="sm">${bt.name}, ${area} м²${hFloors>1?' ('+hFloors+' эт.)':''}</span></div>
             <div class="sp">${fmt(cost)}</div>
           </div>`;
         }
@@ -500,6 +503,418 @@ function calcABK() {
   recalc();
 }
 
+// ── ABK AUTO-CALC ── нормы из СП 31-112-2004, СП 31-112-2007
+// Рассчитывает рекомендованные площади помещений АБК
+// на основе выбранных кортов/площадок и загрузки
+function abkAutoCalcRooms() {
+  const N = window.ABK_NORMS || ABK_NORMS_DEFAULT;
+
+  // 1. Собрать все спортивные объекты из калькулятора
+  const sportCats = ['racket','team','athletics','fun'];
+  let totalPlaces = 0;
+  let teamSports = false;
+  let hasIce = false;
+  const courts = [];
+
+  sportCats.forEach(cat => {
+    CATALOG.filter(i => i.cat === cat).forEach(item => {
+      const qty = itemTotalQty(item.id);
+      if(qty <= 0) return;
+      let ppu = 4;
+      if(item.id.startsWith('padel_std') || item.id.startsWith('padel_pano')) ppu = 4;
+      else if(item.id === 'padel_single') ppu = 2;
+      else if(item.id.startsWith('tennis')) ppu = 4;
+      else if(item.id === 'football_5') { ppu = 12; teamSports = true; }
+      else if(item.id === 'football_7') { ppu = 16; teamSports = true; }
+      else if(item.id === 'football_11') { ppu = 24; teamSports = true; }
+      else if(item.id === 'football_indoor') { ppu = 12; teamSports = true; }
+      else if(item.id === 'basketball') { ppu = 12; teamSports = true; }
+      else if(item.id === 'volleyball') { ppu = 14; teamSports = true; }
+      else if(item.id === 'universal') { ppu = 14; teamSports = true; }
+      else if(item.id === 'ice') { ppu = 30; teamSports = true; hasIce = true; }
+      else if(item.id.startsWith('workout')) ppu = 10;
+      else if(item.id.startsWith('climb')) ppu = 8;
+      else if(item.id.startsWith('trampoline')) ppu = 15;
+      else if(item.id.startsWith('ocr')) ppu = 10;
+      courts.push({ id: item.id, name: item.name, qty, ppu });
+      totalPlaces += qty * ppu;
+    });
+  });
+
+  if(totalPlaces === 0) return null;
+
+  // 2. Загрузка и шкафчики — из ABK_NORMS
+  const shift = Math.ceil(totalPlaces * N.loadFactor);
+  const lockersTotal = Math.ceil(shift * N.lockerMultiplier);
+
+  // 3. Разделение М/Ж/Дет — из ABK_NORMS
+  const lockersM = Math.ceil(lockersTotal * N.malePct);
+  const lockersF = Math.ceil(lockersTotal * N.femalePct);
+  const lockersK = Math.ceil(lockersTotal * N.childPct);
+
+  // 4. Площади по нормам ABK_NORMS
+  const lockerAreaPerPlace = (n) => n > 50 ? N.lockerAreaOver50 : (n >= 30 ? N.lockerArea30to50 : N.lockerAreaUnder30);
+  const lockerMArea = Math.max(N.lockerMMin, Math.ceil(lockersM * (lockerAreaPerPlace(lockersM) + N.lockerExtra)));
+  const lockerFArea = Math.max(N.lockerFMin, Math.ceil(lockersF * (lockerAreaPerPlace(lockersF) + N.lockerExtra)));
+  const lockerKArea = Math.max(N.lockerKMin, Math.ceil(lockersK * (lockerAreaPerPlace(lockersK) + N.lockerExtra)));
+
+  // Душевые
+  const showersM = Math.max(N.showerMin, Math.ceil(Math.ceil(lockersM / N.showerPersonsPer) * N.showerAreaPerHead));
+  const showersF = Math.max(N.showerMin, Math.ceil(Math.ceil(lockersF / N.showerPersonsPer) * N.showerAreaPerHead));
+
+  // Санузлы
+  const wcM = Math.max(N.wcMin, Math.ceil((Math.ceil(lockersM / N.wcMalePerPersons) * 2) * N.wcAreaPerUnit));
+  const wcF = Math.max(N.wcMin, Math.ceil((Math.ceil(lockersF / N.wcFemalePerPersons) + Math.ceil(lockersF / 20)) * N.wcAreaPerUnit));
+
+  // Вестибюль / Рецепция
+  const receptionArea = Math.max(N.receptionMin, Math.ceil(shift * N.receptionPerPerson));
+
+  // Тренерская
+  const totalCourts = courts.reduce((s, c) => s + c.qty, 0);
+  const numCoaches = Math.max(1, Math.ceil(totalCourts * N.coachRatioPerCourt));
+  const coachArea = Math.max(N.coachBase, N.coachBase + (numCoaches - 1) * N.coachPerExtra);
+
+  // Медкабинет
+  const medArea = N.medicalArea;
+
+  // Кафе
+  const cafeSeats = Math.max(10, Math.ceil(shift * N.cafePctOfShift));
+  const cafeArea = Math.max(N.cafeMin, Math.ceil(cafeSeats * N.cafeAreaPerSeat));
+
+  // Офис
+  const officeWP = Math.max(N.officeMinWorkplaces, Math.ceil(totalCourts / N.officeCourtsPerWP));
+  const officeArea = Math.max(N.officeMin, Math.ceil(officeWP * N.officePerWorkplace));
+
+  // Склад
+  const storageArea = Math.max(N.storageMin, Math.ceil(shift * N.storagePerPerson));
+
+  // Технические
+  const heatingArea = N.heatingArea;
+  const electricalArea = N.electricalArea;
+  const serverArea = N.serverArea;
+
+  // Коридоры
+  const usefulArea = lockerMArea + lockerFArea + lockerKArea + showersM + showersF +
+    wcM + wcF + receptionArea + coachArea + medArea + cafeArea + officeArea +
+    storageArea + heatingArea + electricalArea + serverArea;
+  const corridorArea = Math.ceil(usefulArea * N.corridorPct);
+
+  // 5. Сформировать рекомендации
+  const rooms = [
+    { id: 'rm_reception', area: receptionArea, w: 0, h: 0, note: `Вестибюль/рецепция (0.5 м²×${shift} чел.)` },
+    { id: 'rm_cafe', area: cafeArea, w: 0, h: 0, note: `Кафе (${cafeSeats} мест × 1.8 м²)` },
+    { id: 'rm_office', area: officeArea, w: 0, h: 0, note: `Офис (${Math.max(2, Math.ceil(courts.reduce((s,c)=>s+c.qty,0)/4))} раб. мест)` },
+    { id: 'rm_coach', area: coachArea, w: 0, h: 0, note: `Тренерская (${numCoaches} тренеров)` },
+    { id: 'rm_medical', area: medArea, w: 0, h: 0, note: 'Медкабинет (СП 31-112 табл.11)' },
+    { id: 'rm_locker_m', area: lockerMArea, w: 0, h: 0, note: `Раздевалка М (${lockersM} шкафчиков)` },
+    { id: 'rm_locker_f', area: lockerFArea, w: 0, h: 0, note: `Раздевалка Ж (${lockersF} шкафчиков)` },
+    { id: 'rm_locker_k', area: lockerKArea, w: 0, h: 0, note: `Раздевалка Дет. (${lockersK} шкафчиков)` },
+    { id: 'rm_shower', area: showersM + showersF, w: 0, h: 0, note: `Душевые М+Ж (${Math.ceil(lockersM/5)+Math.ceil(lockersF/5)} рожков)`, split: [{area: showersM, suffix:'(М)'}, {area: showersF, suffix:'(Ж)'}] },
+    { id: 'rm_wc', area: wcM + wcF, w: 0, h: 0, note: `Санузлы М+Ж`, split: [{area: wcM, suffix:'(М)'}, {area: wcF, suffix:'(Ж)'}] },
+    { id: 'rm_heating', area: heatingArea, w: 0, h: 0, note: 'Котельная / ИТП' },
+    { id: 'rm_electrical', area: electricalArea, w: 0, h: 0, note: 'Щитовая' },
+    { id: 'rm_server', area: serverArea, w: 0, h: 0, note: 'Серверная / ИТ' },
+    { id: 'rm_storage', area: storageArea, w: 0, h: 0, note: `Склад (0.15 м²×${shift} чел.)` },
+    { id: 'rm_corridor', area: corridorArea, w: 0, h: 0, note: 'Коридоры (~28% от полезной)' },
+  ];
+
+  // Рассчитать W×H для каждой комнаты
+  rooms.forEach(r => {
+    if(r.split) {
+      // Will be split into separate rooms
+      r.split.forEach(s => {
+        const ratio = 1.4;
+        s.w = Math.max(3, Math.round(Math.sqrt(s.area * ratio)));
+        s.h = Math.max(3, Math.ceil(s.area / s.w));
+      });
+    }
+    const ratio = r.id === 'rm_corridor' ? 5.0 : 1.4;
+    r.w = Math.max(3, Math.round(Math.sqrt(r.area * ratio)));
+    r.h = Math.max(2, Math.ceil(r.area / r.w));
+  });
+
+  const totalArea = usefulArea + corridorArea;
+
+  return {
+    shift,
+    totalPlaces,
+    lockersTotal,
+    rooms,
+    usefulArea,
+    corridorArea,
+    totalArea,
+    courts,
+    // Рекомендованный размер АБК
+    recW: Math.max(24, Math.ceil(Math.sqrt(totalArea * 2.5))),
+    recH: Math.max(12, Math.ceil(totalArea / Math.max(24, Math.ceil(Math.sqrt(totalArea * 2.5))))),
+    recFloors: totalArea > 300 ? 2 : 1,
+  };
+}
+
+// Показать модальное окно авто-расчёта АБК
+function showAbkAutoCalcModal(abkId) {
+  const result = abkAutoCalcRooms();
+  if(!result) {
+    alert('Добавьте спортивные объекты в калькулятор для расчёта');
+    return;
+  }
+
+  // Создать модалку
+  let modal = document.getElementById('abkAutoCalcModal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'abkAutoCalcModal';
+    document.body.appendChild(modal);
+  }
+
+  let roomsHtml = '';
+  result.rooms.forEach(r => {
+    const rm = ROOM_CATALOG.find(x => x.id === r.id);
+    if(!rm) return;
+    if(r.split && r.split.length > 1) {
+      r.split.forEach((s, si) => {
+        roomsHtml += `<tr>
+          <td style="padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06)">${rm.icon} ${rm.name} ${s.suffix}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);text-align:right;color:var(--cyan)">${s.area} м²</td>
+          <td style="padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);text-align:center;color:#888">${s.w}×${s.h}м</td>
+        </tr>`;
+      });
+    } else {
+      roomsHtml += `<tr>
+        <td style="padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06)">${rm.icon} ${rm.name}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);text-align:right;color:var(--cyan)">${r.area} м²</td>
+        <td style="padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);text-align:center;color:#888">${r.w}×${r.h}м</td>
+      </tr>`;
+    }
+  });
+
+  // Спорт-объекты сводка
+  let courtsHtml = result.courts.map(c =>
+    `<span style="font-size:11px;background:rgba(59,130,246,.1);color:#93c5fd;padding:2px 8px;border-radius:4px">${c.name} ×${c.qty} (${c.qty*c.ppu} чел.)</span>`
+  ).join(' ');
+
+  modal.style.cssText = 'position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:12px;max-width:600px;width:90%;max-height:85vh;overflow:auto;padding:24px;color:#fff;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;color:var(--cyan);font-size:16px;">📐 Авто-расчёт помещений АБК</h3>
+        <button onclick="document.getElementById('abkAutoCalcModal').style.display='none'" style="background:none;border:none;color:#888;font-size:18px;cursor:pointer">✕</button>
+      </div>
+
+      <div style="background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.15);border-radius:8px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:12px;color:var(--cyan);margin-bottom:8px;font-weight:600">Исходные данные (СП 31-112-2004)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${courtsHtml}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;color:#ccc;">
+          <div>Всего мест: <b style="color:#fff">${result.totalPlaces}</b></div>
+          <div>Загрузка: <b style="color:#fff">80%</b></div>
+          <div>В смену: <b style="color:#fff">${result.shift} чел.</b></div>
+          <div>Шкафчиков (×1.5): <b style="color:#fff">${result.lockersTotal}</b></div>
+        </div>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+        <thead>
+          <tr style="color:var(--tx3);font-size:11px;">
+            <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--bd)">Помещение</th>
+            <th style="text-align:right;padding:5px 8px;border-bottom:1px solid var(--bd)">Площадь</th>
+            <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--bd)">Размер</th>
+          </tr>
+        </thead>
+        <tbody>${roomsHtml}</tbody>
+        <tfoot>
+          <tr style="font-weight:700;color:var(--cyan);">
+            <td style="padding:8px">ИТОГО</td>
+            <td style="padding:8px;text-align:right">${result.totalArea} м²</td>
+            <td style="padding:8px;text-align:center">${result.recW}×${result.recH}м${result.recFloors>1?' (2 эт.)':''}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="document.getElementById('abkAutoCalcModal').style.display='none'" style="padding:8px 16px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:6px;cursor:pointer;font-size:12px">Закрыть</button>
+        <button onclick="applyAbkAutoCalc(${abkId})" style="padding:8px 16px;background:rgba(34,211,238,.2);color:var(--cyan);border:1px solid rgba(34,211,238,.4);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">✅ Применить к АБК</button>
+      </div>
+    </div>
+  `;
+}
+
+// Применить авто-расчёт: задать размеры АБК и разместить комнаты
+function applyAbkAutoCalc(abkId) {
+  const h = APP.hangars.find(x => x.id === abkId);
+  if(!h || h.type !== 'abk') return;
+  const result = abkAutoCalcRooms();
+  if(!result) return;
+
+  // Обновить размеры АБК
+  h.w = result.recW;
+  h.h = result.recH;
+  h.floors = result.recFloors;
+  h.layout = [];
+  h.layout2 = [];
+
+  // Авторазмещение комнат на этаже 1 (простое последовательное, с учётом wallOffset)
+  const wo = h.wallOffset || 1;
+  const gap = h.objectGap || 0.5;
+  let curX = wo, curY = wo;
+  let rowH = 0;
+
+  const placeRoom = (itemId, w, rh, floor) => {
+    const layout = floor === 2 ? (h.layout2 || (h.layout2 = [])) : h.layout;
+    // Check if fits in current row
+    if(curX + w > h.w - wo) {
+      // Next row
+      curX = wo;
+      curY += rowH + gap;
+      rowH = 0;
+    }
+    // Check if fits vertically
+    if(curY + rh > h.h - wo) return false; // doesn't fit
+
+    layout.push({ itemId, x: curX, y: curY, w, h: rh, angle: 0 });
+    curX += w + gap;
+    rowH = Math.max(rowH, rh);
+    return true;
+  };
+
+  let currentFloor = 1;
+  result.rooms.forEach(r => {
+    const rm = ROOM_CATALOG.find(x => x.id === r.id);
+    if(!rm) return;
+
+    if(r.split && r.split.length > 1) {
+      // Place split rooms separately
+      r.split.forEach(s => {
+        if(!placeRoom(r.id, s.w, s.h, currentFloor)) {
+          if(result.recFloors >= 2 && currentFloor === 1) {
+            currentFloor = 2;
+            curX = wo; curY = wo; rowH = 0;
+            placeRoom(r.id, s.w, s.h, currentFloor);
+          }
+        }
+      });
+    } else {
+      if(!placeRoom(r.id, r.w, r.h, currentFloor)) {
+        if(result.recFloors >= 2 && currentFloor === 1) {
+          currentFloor = 2;
+          curX = wo; curY = wo; rowH = 0;
+          placeRoom(r.id, r.w, r.h, currentFloor);
+        }
+      }
+    }
+  });
+
+  // Если 2 этажа — добавить лестницу на оба этажа
+  if(h.floors >= 2) {
+    const stairRm = ROOM_CATALOG.find(r => r.isStaircase);
+    if(stairRm) {
+      const sw = stairRm.defaultW, sh = stairRm.defaultH;
+      // Разместить у входа (нижний правый угол этажа 1)
+      const sx = h.w - wo - sw, sy = h.h - wo - sh;
+      h.layout.push({ itemId: stairRm.id, x: sx, y: sy, w: sw, h: sh, angle: 0 });
+      h.layout2.push({ itemId: stairRm.id, x: sx, y: sy, w: sw, h: sh, angle: 0 });
+    }
+  }
+
+  syncAbkToCalc(h);
+  document.getElementById('abkAutoCalcModal').style.display = 'none';
+  renderHangars();
+  recalc();
+}
+
+// ── ABK NORMS UI ──
+function renderAbkNormsUI(){
+  const cont = document.getElementById('abkNormsSection');
+  if(!cont) return;
+  const N = window.ABK_NORMS || ABK_NORMS_DEFAULT;
+  const isOpen = window._abkNormsOpen || false;
+
+  const nf = (key, label, unit, step) =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="font-size:11px;color:#ccc">${label}</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" value="${N[key]}" step="${step||0.1}" min="0" style="width:60px;padding:3px 4px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:4px;text-align:center;font-size:11px" onchange="window.ABK_NORMS['${key}']=+this.value">
+        <span style="font-size:10px;color:#666;width:30px">${unit}</span>
+      </div>
+    </div>`;
+
+  const grp = (title, fields) =>
+    `<div style="margin-bottom:8px">
+      <div style="font-size:11px;color:var(--cyan);font-weight:600;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid rgba(34,211,238,.15)">${title}</div>
+      ${fields}
+    </div>`;
+
+  cont.innerHTML = `
+  <div style="margin-top:16px;border:1px solid rgba(34,211,238,.15);border-radius:8px;overflow:hidden">
+    <div onclick="window._abkNormsOpen=!window._abkNormsOpen;renderAbkNormsUI();" style="cursor:pointer;padding:10px 14px;background:rgba(34,211,238,.04);display:flex;justify-content:space-between;align-items:center;user-select:none">
+      <span style="color:var(--cyan);font-size:13px;font-weight:600">📏 Нормативы СП 31-112-2004</span>
+      <span style="color:#666;font-size:18px;transform:rotate(${isOpen?'180':'0'}deg);transition:transform .2s">▼</span>
+    </div>
+    ${isOpen ? `<div style="padding:12px 14px">
+      ${grp('⚙️ Загрузка и распределение',
+        nf('loadFactor','Коэфф. загрузки','','0.05') +
+        nf('lockerMultiplier','Множитель шкафчиков','×','0.1') +
+        nf('malePct','Доля мужчин','%','0.05') +
+        nf('femalePct','Доля женщин','%','0.05') +
+        nf('childPct','Доля детей','%','0.05')
+      )}
+      ${grp('🚹 Раздевалки',
+        nf('lockerAreaOver50','Площадь/место (>50 мест)','м²','0.1') +
+        nf('lockerArea30to50','Площадь/место (30-50 мест)','м²','0.1') +
+        nf('lockerAreaUnder30','Площадь/место (<30 мест)','м²','0.1') +
+        nf('lockerExtra','Доп. на шкаф','м²','0.05') +
+        nf('lockerMMin','Мин. раздевалка (М)','м²','1') +
+        nf('lockerFMin','Мин. раздевалка (Ж)','м²','1') +
+        nf('lockerKMin','Мин. раздевалка (Дет.)','м²','1')
+      )}
+      ${grp('🚿 Душевые',
+        nf('showerPersonsPer','Человек на 1 рожок','чел.','1') +
+        nf('showerAreaPerHead','Площадь на рожок','м²','0.5') +
+        nf('showerMin','Мин. площадь душевой','м²','1')
+      )}
+      ${grp('🚻 Санузлы',
+        nf('wcMalePerPersons','Чел. на 1 унитаз (М)','чел.','5') +
+        nf('wcFemalePerPersons','Чел. на 1 унитаз (Ж)','чел.','5') +
+        nf('wcAreaPerUnit','Площадь на единицу','м²','0.5') +
+        nf('wcMin','Мин. площадь санузла','м²','1')
+      )}
+      ${grp('💁 Вестибюль / Рецепция',
+        nf('receptionPerPerson','Площадь на занимающегося','м²/чел','0.1') +
+        nf('receptionMin','Мин. площадь','м²','5')
+      )}
+      ${grp('☕ Кафе',
+        nf('cafePctOfShift','Доля от смены (посадка)','','0.05') +
+        nf('cafeAreaPerSeat','Площадь на место','м²','0.1') +
+        nf('cafeMin','Мин. площадь','м²','5')
+      )}
+      ${grp('📋 Тренерская',
+        nf('coachBase','Базовая площадь','м²','1') +
+        nf('coachPerExtra','На доп. тренера','м²','1') +
+        nf('coachRatioPerCourt','Тренеров на корт','','0.1')
+      )}
+      ${grp('🏢 Офис / Медкабинет',
+        nf('officePerWorkplace','Площадь на раб. место','м²','1') +
+        nf('officeMinWorkplaces','Мин. рабочих мест','шт','1') +
+        nf('officeCourtsPerWP','Кортов на 1 раб. место','','1') +
+        nf('officeMin','Мин. площадь офиса','м²','5') +
+        nf('medicalArea','Медкабинет','м²','1')
+      )}
+      ${grp('📦 Склад / Техника',
+        nf('storagePerPerson','Склад на занимающегося','м²/чел','0.05') +
+        nf('storageMin','Мин. площадь склада','м²','1') +
+        nf('heatingArea','Котельная / ИТП','м²','1') +
+        nf('electricalArea','Щитовая','м²','1') +
+        nf('serverArea','Серверная','м²','1')
+      )}
+      ${grp('🚪 Коридоры',
+        nf('corridorPct','Доля от полезной площади','','0.01')
+      )}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button onclick="window.ABK_NORMS=JSON.parse(JSON.stringify(ABK_NORMS_DEFAULT));renderAbkNormsUI();" style="padding:6px 12px;background:var(--bg3);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:6px;cursor:pointer;font-size:11px">Сбросить по умолчанию</button>
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
 // ── HANGARS ──
 function addHangar() {
   APP.hangars.push({id:Date.now(), type:'tent_cold', items:{}, w:60, h:40, layout:[]});
@@ -558,6 +973,7 @@ function renderHangars() {
       <div class="bCardHead">
         <div><h4 style="color:var(--cyan)">АБК №${idx+1}</h4><div class="bMeta">${h.w}×${h.h}м · ${floors} эт. · ${totalArea} м² · ${fmt(cost)} · ${roomCount} помещений</div></div>
         <div style="display:flex;gap:4px;">
+          <button class="pBtn" style="color:#4ade80;border-color:rgba(74,222,128,.3);" onclick="showAbkAutoCalcModal(${h.id})" title="Авто-расчёт помещений по нормам СП">📐 Авто</button>
           <button class="pBtn" style="color:var(--cyan);border-color:rgba(34,211,238,.3);" onclick="openHangarEditor(${h.id})">Редактор</button>
           <button class="pBtn red" onclick="removeHangar(${h.id})">✕</button>
         </div>
@@ -605,10 +1021,23 @@ function renderHangars() {
     if(calcOthers.length) pickerH += '<div class="hPickerLabel">Другие:</div>' + calcOthers.map(it=>`<div class="hItem" onclick="addToHangar(${h.id},'${it.id}')">${it.icon} ${it.name}</div>`).join('');
     // Filter out ABK type from the building type selector
     const hangarTypes = BUILDING_TYPES.filter(b=>!b.isAbk);
+    // Capital buildings (wood, concrete) support floors
+    const isCapital = (h.type==='wood'||h.type==='concrete');
+    const floors = isCapital ? (h.floors||1) : 1;
+    const totalArea = isCapital ? area * floors : area;
+    const totalCost = totalArea * bt.price;
+    const floorHtml = isCapital ? `
+          <div class="bField"><label>Этажность</label>
+            <select onchange="updateHangar(${h.id},'floors',+this.value)" style="padding:4px;background:var(--bg3);color:#fff;border:1px solid var(--bd);border-radius:4px">
+              <option value="1"${floors===1?' selected':''}>1 этаж</option>
+              <option value="2"${floors===2?' selected':''}>2 этажа</option>
+              <option value="3"${floors===3?' selected':''}>3 этажа</option>
+            </select>
+          </div>` : '';
     cont.innerHTML+=`
     <div class="bCard">
       <div class="bCardHead">
-        <div><h4 style="color:var(--gold2)">Ангар №${idx+1}</h4><div class="bMeta">${bt.name} · ${area} м² · ${fmt(cost)}${h.layout?.length?' · '+h.layout.length+' объектов':''}</div></div>
+        <div><h4 style="color:var(--gold2)">Ангар №${idx+1}</h4><div class="bMeta">${bt.name} · ${totalArea} м²${isCapital&&floors>1?' ('+floors+' эт.)':''} · ${fmt(totalCost)}${h.layout?.length?' · '+h.layout.length+' объектов':''}</div></div>
         <div style="display:flex;gap:4px;">
           <button class="pBtn" style="color:var(--cyan);border-color:rgba(34,211,238,.3);" onclick="openHangarEditor(${h.id})">Редактор</button>
           <button class="pBtn red" onclick="removeHangar(${h.id})">✕</button>
@@ -621,6 +1050,7 @@ function renderHangars() {
               ${hangarTypes.map(b=>`<option value="${b.id}"${b.id===h.type?' selected':''}>${b.name} — ${fmt2(b.price)} ₽/м²</option>`).join('')}
             </select>
           </div>
+          ${floorHtml}
         </div>
         <div class="bField" style="margin-bottom:8px"><label>Добавить объект внутрь</label>
           <div class="hPicker">${pickerH}</div>

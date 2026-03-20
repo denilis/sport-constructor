@@ -12,6 +12,9 @@ const HE = { // Hangar Editor state
   placing: null,   // itemId being placed
   panning: false, panStartX:0, panStartY:0,
   mouse:{x:0,y:0},
+  currentFloor: 1, // 1 or 2 (ABK only)
+  resizing: false, resizeEdge: null, // edge resize state
+  snapDist: 0.5, // snap threshold in meters
 };
 
 function openHangarEditor(hangarId){
@@ -27,6 +30,8 @@ function openHangarEditor(hangarId){
   HE.selected = null;
   HE.placing = null;
   HE.dragging = false;
+  HE.resizing = false;
+  HE.currentFloor = 1;
 
   // Auto-fit zoom
   const modal = document.getElementById('hangarEditorModal');
@@ -41,6 +46,33 @@ function openHangarEditor(hangarId){
   HE.panX = (cvEl.width - h.w*HE.ppm)/2;
   HE.panY = (cvEl.height - h.h*HE.ppm)/2;
   HE.zoom = 1;
+
+  // Update header: title + floor tabs for ABK
+  const isAbk = h.type === 'abk';
+  const floors = h.floors || 1;
+  document.querySelector('#hangarEditorModal .heHeader h3').textContent =
+    isAbk ? 'КОНСТРУКТОР АБК' : 'КОНСТРУКТОР АНГАРА';
+
+  // Floor tabs (ABK with 2+ floors)
+  let floorTabsEl = document.getElementById('heFloorTabs');
+  if(!floorTabsEl){
+    floorTabsEl = document.createElement('div');
+    floorTabsEl.id = 'heFloorTabs';
+    floorTabsEl.style.cssText = 'display:flex;gap:4px;margin-left:12px;';
+    // Insert after the title h3
+    const h3 = document.querySelector('#hangarEditorModal .heHeader h3');
+    h3.after(floorTabsEl);
+  }
+  if(isAbk && floors >= 2){
+    floorTabsEl.innerHTML = `
+      <button class="heFloorTab active" onclick="heSwitchFloor(1)" id="heFloor1Btn" style="padding:3px 10px;font-size:11px;border:1px solid var(--cyan);background:rgba(34,211,238,.2);color:var(--cyan);border-radius:4px;cursor:pointer;font-weight:600;">Этаж 1</button>
+      <button class="heFloorTab" onclick="heSwitchFloor(2)" id="heFloor2Btn" style="padding:3px 10px;font-size:11px;border:1px solid var(--bd);background:transparent;color:var(--tx3);border-radius:4px;cursor:pointer;">Этаж 2</button>
+    `;
+    floorTabsEl.style.display = 'flex';
+  } else {
+    floorTabsEl.style.display = 'none';
+    floorTabsEl.innerHTML = '';
+  }
 
   // Populate palette
   buildHEPalette(h);
@@ -58,83 +90,141 @@ function closeHangarEditor(){
   renderHangars(); recalc();
 }
 
+// Get current floor's layout array (returns reference)
+function heGetLayout(h){
+  if(!h) h = APP.hangars.find(x=>x.id===HE.hangarId);
+  if(!h) return [];
+  if(h.type === 'abk' && HE.currentFloor === 2){
+    if(!h.layout2) h.layout2 = [];
+    return h.layout2;
+  }
+  if(!h.layout) h.layout = [];
+  return h.layout;
+}
+
+function heSwitchFloor(f){
+  HE.currentFloor = f;
+  HE.selected = null;
+  HE.placing = null;
+  HE.dragging = false;
+  HE.resizing = false;
+  // Update tab styling
+  const b1 = document.getElementById('heFloor1Btn');
+  const b2 = document.getElementById('heFloor2Btn');
+  if(b1 && b2){
+    [b1,b2].forEach(b=>{b.style.background='transparent';b.style.borderColor='var(--bd)';b.style.color='var(--tx3)';b.style.fontWeight='400';});
+    const active = f===1 ? b1 : b2;
+    active.style.background='rgba(34,211,238,.2)';active.style.borderColor='var(--cyan)';active.style.color='var(--cyan)';active.style.fontWeight='600';
+  }
+  const h = APP.hangars.find(x=>x.id===HE.hangarId);
+  buildHEPalette(h);
+  drawHangarInterior();
+  updateHEProps();
+}
+
 function buildHEPalette(h){
   const pal = document.getElementById('hePalette');
   const isAbk = h && h.type === 'abk';
 
   if(isAbk){
-    // ABK mode: show ROOM_CATALOG items
+    // ABK mode: show ROOM_CATALOG items grouped by type
+    const curLayout = heGetLayout(h);
     const allRooms = [...(h.layout||[]), ...(h.layout2||[])];
-    let html = '<div class="hePalSection" style="color:var(--cyan)">🏢 Помещения АБК</div>';
+    const groupLabels = {common:'💁 Общие', sanitary:'🚿 Раздевалки / Санузлы', tech:'⚡ Технические', service:'🚪 Служебные'};
+    const groupOrder = ['common','sanitary','tech','service'];
+    const grouped = {};
     ROOM_CATALOG.forEach(rm => {
-      const placed = allRooms.filter(li=>li.itemId===rm.id).length;
-      const placedArea = allRooms.filter(li=>li.itemId===rm.id).reduce((s,li)=>s+li.w*li.h, 0);
-      let countHtml = placed > 0 ? `<span class="hePalCount">${placed} шт · ${placedArea} м²</span>` : '';
-      html += `
-      <div class="hePalItem${HE.placing===rm.id?' active':''}" onclick="heStartPlace('${rm.id}')" title="${rm.name} (${rm.defaultW}×${rm.defaultH}м)">
-        <span>${rm.icon}</span>
-        <div class="hePalInfo"><b>${rm.name}</b><span class="hePalDims">${rm.defaultW}×${rm.defaultH}м</span>${countHtml}</div>
-      </div>`;
+      const g = rm.group || 'common';
+      if(!grouped[g]) grouped[g] = [];
+      grouped[g].push(rm);
     });
+    let html = `<div onclick="showAbkAutoCalcModal(${h.id})" style="cursor:pointer;padding:8px;margin:6px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:6px;text-align:center;color:#4ade80;font-size:12px;font-weight:600;">📐 Авто-расчёт по нормам СП</div>`;
+    for(const g of groupOrder){
+      if(!grouped[g]) continue;
+      const items = grouped[g];
+      const placedInGroup = items.reduce((s,rm)=>s+curLayout.filter(li=>li.itemId===rm.id).length, 0);
+      const isOpen = HE['_grp_abk_'+g] !== undefined ? HE['_grp_abk_'+g] : true;
+      let badge = placedInGroup > 0 ? `<span style="background:rgba(74,222,128,.2);color:#4ade80;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:auto;">${placedInGroup} разм.</span>` : '';
+      html += `<div class="hePalGroup" onclick="HE['_grp_abk_${g}']=${isOpen?'false':'true'};buildHEPalette(APP.hangars.find(x=>x.id===HE.hangarId));" style="cursor:pointer;padding:7px 8px;color:var(--cyan);font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.06);user-select:none;">
+        <span style="font-size:10px;transition:transform .2s;transform:rotate(${isOpen?'90':'0'}deg)">▶</span> ${groupLabels[g]} <span style="color:#555;font-weight:400;font-size:10px">(${items.length})</span>${badge}
+      </div>`;
+      if(isOpen){
+        items.forEach(rm => {
+          const placed = allRooms.filter(li=>li.itemId===rm.id).length;
+          const placedArea = allRooms.filter(li=>li.itemId===rm.id).reduce((s,li)=>s+li.w*li.h, 0);
+          let countHtml = placed > 0 ? `<span class="hePalCount">${placed} шт · ${placedArea} м²</span>` : '';
+          html += `
+          <div class="hePalItem${HE.placing===rm.id?' active':''}" onclick="heStartPlace('${rm.id}')" title="${rm.name} (${rm.defaultW}×${rm.defaultH}м)">
+            <span>${rm.icon}</span>
+            <div class="hePalInfo"><b>${rm.name}</b><span class="hePalDims">${rm.defaultW}×${rm.defaultH}м</span>${countHtml}</div>
+          </div>`;
+        });
+      }
+    }
     pal.innerHTML = html;
     return;
   }
 
-  // Sport hangar mode: show CATALOG items
-  const sportItems = ['racket','team','athletics','fun'].flatMap(c=>CATALOG.filter(i=>i.cat===c && i.areaW>0 && i.areaL>0));
-  const infra = CATALOG.filter(i=>['reception','cafe'].includes(i.id));
+  // Sport hangar mode: show CATALOG items grouped by category with collapsible sections
+  const sportItems = ['racket','team','athletics','fun','wellness'].flatMap(c=>CATALOG.filter(i=>i.cat===c && i.areaW>0 && i.areaL>0));
+  const infra = CATALOG.filter(i=>i.cat==='infra' && i.areaW>0);
   const all = [...sportItems, ...infra];
 
-  const selected = all.filter(it => itemTotalQty(it.id) > 0);
-  const others = all.filter(it => itemTotalQty(it.id) <= 0);
-
+  const curLayout = heGetLayout(h);
   const renderItem = it => {
     const totalQty = itemTotalQty(it.id);
-    const placed = h.layout ? h.layout.filter(li=>li.itemId===it.id).length : 0;
+    const placed = curLayout ? curLayout.filter(li=>li.itemId===it.id).length : 0;
     let countHtml = '';
     if(totalQty > 0){
       const cls = placed >= totalQty ? 'done' : (placed > 0 ? '' : 'none');
-      countHtml = `<span class="hePalCount ${cls}">${placed} из ${totalQty} расставлено</span>`;
+      countHtml = `<span class="hePalCount ${cls}">${placed} из ${totalQty}</span>`;
     }
+    const selectedCls = totalQty > 0 ? ' hePalSel' : '';
     return `
-    <div class="hePalItem${HE.placing===it.id?' active':''}" onclick="heStartPlace('${it.id}')" title="${it.name} (${it.areaW}×${it.areaL}м)">
+    <div class="hePalItem${HE.placing===it.id?' active':''}${selectedCls}" onclick="heStartPlace('${it.id}')" title="${it.name} (${it.areaW}×${it.areaL}м)">
       <span>${it.icon}</span>
       <div class="hePalInfo"><b>${it.name}</b><span class="hePalDims">${it.areaW}×${it.areaL}м</span>${countHtml}</div>
     </div>`;
   };
 
-  const catLabels = {racket:'🎾 Ракеточные', team:'⚽ Командные', athletics:'🏃 Атлетика', fun:'🎪 Развлечения', glamping:'🏕 Глэмпинг', infra:'🏢 Инфраструктура'};
+  const catLabels = {racket:'🎾 Ракеточные', team:'⚽ Командные', athletics:'🏃 Атлетика', fun:'🎪 Развлечения', wellness:'🧖 Велнес', infra:'🏢 Инфраструктура'};
+  const catOrder = ['racket','team','athletics','fun','wellness','infra'];
+
+  // Group all items by category
+  const grouped = {};
+  all.forEach(it => {
+    const cat = it.cat || 'other';
+    if(!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(it);
+  });
 
   let html = '';
-  if(selected.length){
-    html += '<div class="hePalSection">Выбранные в калькуляторе</div>';
-    html += selected.map(renderItem).join('');
-  }
-  if(others.length){
-    html += '<div class="hePalSection other">Другие объекты</div>';
-    const grouped = {};
-    others.forEach(it=>{
-      const cat = ['reception','cafe'].includes(it.id) ? 'infra' : (it.cat||'other');
-      if(!grouped[cat]) grouped[cat]=[];
-      grouped[cat].push(it);
-    });
-    const catOrder = ['racket','team','athletics','fun','glamping','infra'];
-    for(const cat of catOrder){
-      if(!grouped[cat] || !grouped[cat].length) continue;
-      const label = catLabels[cat]||cat;
-      const isOpen = HE['_grp_'+cat]||false;
-      html += `<div class="hePalGroup" onclick="HE['_grp_${cat}']=!HE['_grp_${cat}'];buildHEPalette(APP.hangars.find(x=>x.id===HE.hangarId));" style="cursor:pointer;padding:6px 8px;color:#c5a059;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.05);">
-        <span style="font-size:10px;transition:transform .2s;transform:rotate(${isOpen?'90':'0'}deg)">▶</span> ${label} <span style="color:#555;font-weight:400;font-size:10px">(${grouped[cat].length})</span>
-      </div>`;
-      if(isOpen){
-        html += grouped[cat].map(renderItem).join('');
-      }
-    }
-    for(const cat of Object.keys(grouped)){
-      if(catOrder.includes(cat)) continue;
-      html += grouped[cat].map(renderItem).join('');
+
+  for(const cat of catOrder){
+    if(!grouped[cat] || !grouped[cat].length) continue;
+    const items = grouped[cat];
+    const selectedCount = items.filter(it => itemTotalQty(it.id) > 0).length;
+    const placedCount = items.filter(it => curLayout?.some(li => li.itemId === it.id)).length;
+    const label = catLabels[cat] || cat;
+
+    // Auto-open categories that have selected items, or that user manually toggled
+    const hasSelected = selectedCount > 0;
+    const userToggled = HE['_grp_' + cat];
+    const isOpen = userToggled !== undefined ? userToggled : hasSelected;
+
+    // Category badge
+    let badge = '';
+    if(selectedCount > 0) badge = `<span style="background:rgba(34,211,238,.2);color:var(--cyan);font-size:9px;padding:1px 5px;border-radius:3px;margin-left:auto;">${selectedCount} выбр.</span>`;
+    if(placedCount > 0) badge = `<span style="background:rgba(74,222,128,.2);color:#4ade80;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:auto;">${placedCount} размещ.</span>`;
+
+    html += `<div class="hePalGroup" onclick="HE['_grp_${cat}']=${isOpen?'false':'true'};buildHEPalette(APP.hangars.find(x=>x.id===HE.hangarId));" style="cursor:pointer;padding:7px 8px;color:#c5a059;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.06);user-select:none;">
+      <span style="font-size:10px;transition:transform .2s;transform:rotate(${isOpen?'90':'0'}deg)">▶</span> ${label} <span style="color:#555;font-weight:400;font-size:10px">(${items.length})</span>${badge}
+    </div>`;
+    if(isOpen){
+      html += items.map(renderItem).join('');
     }
   }
+
   pal.innerHTML = html;
 }
 
@@ -152,7 +242,8 @@ function heAutoPlace(){
     if(it.areaW<=0||it.areaL<=0) return;
     const qty = itemTotalQty(it.id);
     if(qty<=0) return;
-    const alreadyPlaced = h.layout.filter(li=>li.itemId===it.id).length;
+    const layout = heGetLayout(h);
+    const alreadyPlaced = layout.filter(li=>li.itemId===it.id).length;
     for(let i=alreadyPlaced; i<qty; i++){
       toPlace.push({itemId:it.id, w:it.areaW, h:it.areaL, name:it.name});
     }
@@ -276,9 +367,23 @@ function heAddItem(itemId, cx, cy){
   const w = rm ? rm.defaultW : it.areaW;
   const hh = rm ? rm.defaultH : it.areaL;
 
-  h.layout.push({itemId, x: cx - w/2, y: cy - hh/2, w, h: hh, angle:0});
+  // Snap to walls and other objects
+  let sx = cx - w/2, sy = cy - hh/2;
+  const snapped = heSnapPosition(h, sx, sy, w, hh, -1);
+  sx = snapped.x; sy = snapped.y;
+
+  const layout = heGetLayout(h);
+  layout.push({itemId, x: sx, y: sy, w, h: hh, angle:0});
   syncHangarItems(h);
-  HE.selected = h.layout.length-1;
+  HE.selected = layout.length-1;
+
+  // If staircase on ABK with 2 floors, mirror to other floor
+  if(h.type==='abk' && (h.floors||1)>=2 && rm && rm.isStaircase){
+    const otherLayout = HE.currentFloor===1 ? (h.layout2||(h.layout2=[])) : h.layout;
+    // Only add if not already there at same position
+    const exists = otherLayout.some(li=>li.itemId===itemId && Math.abs(li.x-sx)<0.5 && Math.abs(li.y-sy)<0.5);
+    if(!exists) otherLayout.push({itemId, x: sx, y: sy, w, h: hh, angle:0});
+  }
 
   // If ABK, sync rooms to calculator
   if(h.type==='abk' && typeof syncAbkToCalc==='function') syncAbkToCalc(h);
@@ -290,7 +395,8 @@ function heAddItem(itemId, cx, cy){
 function heDeleteSelected(){
   const h = APP.hangars.find(x=>x.id===HE.hangarId);
   if(!h||HE.selected===null) return;
-  h.layout.splice(HE.selected,1);
+  const layout = heGetLayout(h);
+  layout.splice(HE.selected,1);
   HE.selected=null;
   syncHangarItems(h);
   if(h.type==='abk' && typeof syncAbkToCalc==='function') syncAbkToCalc(h);
@@ -299,9 +405,13 @@ function heDeleteSelected(){
 }
 
 function syncHangarItems(h){
-  // Rebuild h.items from layout
+  // Rebuild h.items from all floors
   h.items={};
-  h.layout.forEach(li=>{
+  (h.layout||[]).forEach(li=>{
+    if(!h.items[li.itemId]) h.items[li.itemId]={count:0};
+    h.items[li.itemId].count++;
+  });
+  (h.layout2||[]).forEach(li=>{
     if(!h.items[li.itemId]) h.items[li.itemId]={count:0};
     h.items[li.itemId].count++;
   });
@@ -376,13 +486,31 @@ function drawHangarInterior(){
   ctx.save(); ctx.translate(hx-6, hy+hh/2); ctx.rotate(-Math.PI/2);
   ctx.fillText(`${h.h}м`, 0, 0); ctx.restore();
 
+  // Get current floor layout
+  const layout = heGetLayout(h);
+
+  // For ABK with 2 floors: draw ghost of other floor first
+  if(h.type==='abk' && (h.floors||1)>=2){
+    const otherLayout = HE.currentFloor===1 ? (h.layout2||[]) : (h.layout||[]);
+    ctx.globalAlpha = 0.15;
+    otherLayout.forEach(li=>{
+      const ix=hx+li.x*ppm, iy=hy+li.y*ppm, iw=li.w*ppm, ih=li.h*ppm;
+      ctx.fillStyle='rgba(100,100,150,.3)'; ctx.fillRect(ix,iy,iw,ih);
+      ctx.strokeStyle='rgba(100,100,150,.4)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+      ctx.strokeRect(ix,iy,iw,ih); ctx.setLineDash([]);
+      const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===li.itemId) : null;
+      if(rm){ctx.fillStyle='#888'; ctx.font='8px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(rm.name, ix+iw/2, iy+ih/2);}
+    });
+    ctx.globalAlpha = 1;
+  }
+
   // Fix legacy angles stored in degrees (>2π means it was degrees, not radians)
-  (h.layout||[]).forEach(li=>{
+  layout.forEach(li=>{
     if(li.angle && Math.abs(li.angle) > 2*Math.PI) li.angle = li.angle * Math.PI / 180;
   });
 
   // Draw placed items
-  (h.layout||[]).forEach((li,idx)=>{
+  layout.forEach((li,idx)=>{
     const ix=hx+li.x*ppm, iy=hy+li.y*ppm, iw=li.w*ppm, ih=li.h*ppm;
     ctx.save();
     if(li.angle){
@@ -396,10 +524,11 @@ function drawHangarInterior(){
       // Room rendering
       const colors = {
         rm_reception:'rgba(197,160,89,.3)', rm_cafe:'rgba(249,115,22,.3)', rm_locker_m:'rgba(59,130,246,.3)',
-        rm_locker_f:'rgba(236,72,153,.3)', rm_wc:'rgba(34,211,238,.3)', rm_coach:'rgba(139,92,246,.3)',
+        rm_locker_f:'rgba(236,72,153,.3)', rm_locker_k:'rgba(74,222,128,.3)', rm_shower:'rgba(34,211,238,.3)',
+        rm_wc:'rgba(6,182,212,.3)', rm_coach:'rgba(139,92,246,.3)',
         rm_storage:'rgba(100,116,139,.3)', rm_office:'rgba(234,179,8,.3)', rm_server:'rgba(75,85,99,.3)',
-        rm_medical:'rgba(239,68,68,.3)', rm_corridor:'rgba(156,163,175,.15)', rm_staircase:'rgba(168,85,247,.3)',
-        rm_heating:'rgba(239,68,68,.25)'
+        rm_medical:'rgba(239,68,68,.3)', rm_corridor:'rgba(156,163,175,.15)', rm_staircase:'rgba(168,85,247,.35)',
+        rm_heating:'rgba(239,68,68,.25)', rm_electrical:'rgba(245,158,11,.3)'
       };
       ctx.fillStyle=colors[li.itemId]||'rgba(34,211,238,.2)';
       ctx.fillRect(ix,iy,iw,ih);
@@ -425,9 +554,30 @@ function drawHangarInterior(){
     ctx.restore();
   });
 
+  // Draw resize handles for selected room
+  if(HE.selected!==null && layout[HE.selected]){
+    const li=layout[HE.selected];
+    const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===li.itemId) : null;
+    if(rm){
+      const ix=hx+li.x*ppm, iy=hy+li.y*ppm, iw=li.w*ppm, ih=li.h*ppm;
+      const hs=5; // handle size
+      const handles=[
+        {edge:'right', x:ix+iw-hs/2, y:iy+ih/2-hs, w:hs, h:hs*2},
+        {edge:'bottom', x:ix+iw/2-hs, y:iy+ih-hs/2, w:hs*2, h:hs},
+        {edge:'left', x:ix-hs/2, y:iy+ih/2-hs, w:hs, h:hs*2},
+        {edge:'top', x:ix+iw/2-hs, y:iy-hs/2, w:hs*2, h:hs},
+        {edge:'br', x:ix+iw-hs, y:iy+ih-hs, w:hs*2, h:hs*2},
+      ];
+      handles.forEach(hd=>{
+        ctx.fillStyle='rgba(197,160,89,.7)'; ctx.fillRect(hd.x, hd.y, hd.w, hd.h);
+      });
+      HE._resizeHandles = handles;
+    } else { HE._resizeHandles = null; }
+  } else { HE._resizeHandles = null; }
+
   // Draw rotation & delete controls for selected object (AFTER all objects, on top)
-  if(HE.selected!==null && h.layout[HE.selected]){
-    const li=h.layout[HE.selected];
+  if(HE.selected!==null && layout[HE.selected]){
+    const li=layout[HE.selected];
     const ix=hx+li.x*ppm, iy=hy+li.y*ppm, iw=li.w*ppm, ih=li.h*ppm;
     const cx=ix+iw/2, topY=iy-30;
     const btnR=14;
@@ -468,8 +618,8 @@ function drawHangarInterior(){
   }
 
   // Distance indicators for selected/dragging object
-  if(HE.selected!==null && h.layout[HE.selected]){
-    heDrawDistances(ctx, h, HE.selected, hx, hy, ppm);
+  if(HE.selected!==null && layout[HE.selected]){
+    heDrawDistancesFL(ctx, h, layout, HE.selected, hx, hy, ppm);
   }
 
   // Ghost (placing mode)
@@ -504,15 +654,20 @@ function drawHangarInterior(){
   const wm=(HE.mouse.x-px)/ppm, hm=(HE.mouse.y-py)/ppm;
   ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(0,cv.height-22,cv.width,22);
   ctx.fillStyle='#7a90c0'; ctx.font='10px monospace'; ctx.textAlign='left';
-  ctx.fillText(`${wm.toFixed(1)}м, ${hm.toFixed(1)}м  |  Объектов: ${h.layout?.length||0}  |  ${HE.placing?'Размещение: '+HE.placing:''}`,6,cv.height-7);
+  const floorLabel = (h.type==='abk' && (h.floors||1)>=2) ? `Этаж ${HE.currentFloor}  |  ` : '';
+  ctx.fillText(`${floorLabel}${wm.toFixed(1)}м, ${hm.toFixed(1)}м  |  Объектов: ${layout.length}  |  ${HE.placing?'Размещение: '+HE.placing:''}`,6,cv.height-7);
 }
 
-function heDrawDistances(ctx, h, selIdx, hx, hy, ppm){
-  const li = h.layout[selIdx];
-  heDrawDistancesForRect(ctx, h, li, selIdx, hx, hy, ppm);
+function heDrawDistancesFL(ctx, h, layout, selIdx, hx, hy, ppm){
+  const li = layout[selIdx];
+  heDrawDistancesForRectFL(ctx, h, layout, li, selIdx, hx, hy, ppm);
 }
 
 function heDrawDistancesForRect(ctx, h, li, skipIdx, hx, hy, ppm){
+  heDrawDistancesForRectFL(ctx, h, heGetLayout(h), li, skipIdx, hx, hy, ppm);
+}
+
+function heDrawDistancesForRectFL(ctx, h, layout, li, skipIdx, hx, hy, ppm){
   const gap = h.objectGap||0;
   // Edges of selected rect in meters
   const L=li.x, R=li.x+li.w, T=li.y, B=li.y+li.h;
@@ -523,7 +678,7 @@ function heDrawDistancesForRect(ctx, h, li, skipIdx, hx, hy, ppm){
 
   // Find nearest object edges in each direction
   let nearL=dLeft, nearR=dRight, nearT=dTop, nearB=dBottom;
-  (h.layout||[]).forEach((o,i)=>{
+  (layout||[]).forEach((o,i)=>{
     if(i===skipIdx) return;
     const oL=o.x, oR=o.x+o.w, oT=o.y, oB=o.y+o.h;
     // Check vertical overlap for left/right
@@ -578,11 +733,12 @@ function heDrawDistancesForRect(ctx, h, li, skipIdx, hx, hy, ppm){
 function updateHEProps(){
   const h = APP.hangars.find(x=>x.id===HE.hangarId);
   const el = document.getElementById('heProps');
-  if(!h||HE.selected===null||!h.layout[HE.selected]){
+  const layout = heGetLayout(h);
+  if(!h||HE.selected===null||!layout[HE.selected]){
     el.innerHTML='<div style="color:var(--tx4);font-size:10px;">Выберите объект</div>';
     return;
   }
-  const li=h.layout[HE.selected];
+  const li=layout[HE.selected];
   const rm = (typeof ROOM_CATALOG!=='undefined') ? ROOM_CATALOG.find(r=>r.id===li.itemId) : null;
   const it = rm ? null : CATALOG.find(c=>c.id===li.itemId);
   const name = rm ? rm.name : (it?.name || li.itemId);
@@ -622,7 +778,8 @@ function updateHEProps(){
 function heResizeSelected(w, hVal){
   const h = APP.hangars.find(x=>x.id===HE.hangarId);
   if(!h||HE.selected===null) return;
-  const li = h.layout[HE.selected];
+  const layout = heGetLayout(h);
+  const li = layout[HE.selected];
   if(w!==null) li.w = Math.max(1, w);
   if(hVal!==null) li.h = Math.max(1, hVal);
   if(h.type==='abk' && typeof syncAbkToCalc==='function') syncAbkToCalc(h);
@@ -633,7 +790,7 @@ function heResizeSelected(w, hVal){
 function heRotateSelected(deg){
   const h = APP.hangars.find(x=>x.id===HE.hangarId);
   if(!h||HE.selected===null) return;
-  h.layout[HE.selected].angle = deg*Math.PI/180;
+  heGetLayout(h)[HE.selected].angle = deg*Math.PI/180;
   drawHangarInterior();
   updateHEProps();
 }
@@ -647,18 +804,48 @@ function initHangarEditorEvents(){
     if(!HE.active) return;
     const r=cv.getBoundingClientRect();
     HE.mouse.x=e.clientX-r.left; HE.mouse.y=e.clientY-r.top;
+
+    // Resize mode
+    if(HE.resizing && HE.selected!==null && HE.resizeEdge){
+      const h=APP.hangars.find(x=>x.id===HE.hangarId);
+      if(!h) return;
+      const layout=heGetLayout(h);
+      const li=layout[HE.selected];
+      const mx=(HE.mouse.x-HE.panX)/HE.ppm, my=(HE.mouse.y-HE.panY)/HE.ppm;
+      const edge=HE.resizeEdge;
+      if(edge==='right'||edge==='br'){li.w=Math.max(1,Math.round((mx-li.x)*2)/2);}
+      if(edge==='bottom'||edge==='br'){li.h=Math.max(1,Math.round((my-li.y)*2)/2);}
+      if(edge==='left'){const newX=Math.round(mx*2)/2;const dx=li.x-newX;li.x=newX;li.w=Math.max(1,li.w+dx);}
+      if(edge==='top'){const newY=Math.round(my*2)/2;const dy=li.y-newY;li.y=newY;li.h=Math.max(1,li.h+dy);}
+      if(h.type==='abk'&&typeof syncAbkToCalc==='function') syncAbkToCalc(h);
+      drawHangarInterior(); updateHEProps(); return;
+    }
+
     if(HE.dragging && HE.selected!==null){
       const h=APP.hangars.find(x=>x.id===HE.hangarId);
       if(!h) return;
-      const li=h.layout[HE.selected];
-      li.x = (HE.mouse.x-HE.panX)/HE.ppm - HE.dRelX;
-      li.y = (HE.mouse.y-HE.panY)/HE.ppm - HE.dRelY;
+      const layout=heGetLayout(h);
+      const li=layout[HE.selected];
+      let nx = (HE.mouse.x-HE.panX)/HE.ppm - HE.dRelX;
+      let ny = (HE.mouse.y-HE.panY)/HE.ppm - HE.dRelY;
+      // Snap
+      const snapped = heSnapPosition(h, nx, ny, li.w, li.h, HE.selected);
+      li.x = snapped.x; li.y = snapped.y;
       drawHangarInterior(); updateHEProps();
       return;
     }
     if(HE.panning){
       HE.panX += e.movementX; HE.panY += e.movementY;
       drawHangarInterior(); return;
+    }
+    // Update cursor for resize handles
+    if(HE._resizeHandles && HE.selected!==null && !HE.placing){
+      const mx=HE.mouse.x, my=HE.mouse.y;
+      const hit=HE._resizeHandles.find(hd=>mx>=hd.x&&mx<=hd.x+hd.w&&my>=hd.y&&my<=hd.y+hd.h);
+      if(hit){
+        const cursors={right:'ew-resize',left:'ew-resize',top:'ns-resize',bottom:'ns-resize',br:'nwse-resize'};
+        cv.style.cursor=cursors[hit.edge]||'default';
+      } else if(!HE.placing){cv.style.cursor='default';}
     }
     if(HE.placing) drawHangarInterior();
   });
@@ -671,22 +858,30 @@ function initHangarEditorEvents(){
     if(e.button===1||e.altKey){HE.panning=true;return;}
     const h=APP.hangars.find(x=>x.id===HE.hangarId);
     if(!h) return;
+    const layout=heGetLayout(h);
+
+    // Check resize handle hits
+    if(HE._resizeHandles && HE.selected!==null){
+      const hit=HE._resizeHandles.find(hd=>mx>=hd.x&&mx<=hd.x+hd.w&&my>=hd.y&&my<=hd.y+hd.h);
+      if(hit){HE.resizing=true;HE.resizeEdge=hit.edge;return;}
+    }
+
     // Check rotation/delete button hits first
     if(HE._rotBtns && HE.selected!==null){
       const btns=HE._rotBtns;
       const hitBtn = (b)=> Math.hypot(mx-b.x, my-b.y) <= b.r;
       if(hitBtn(btns.ccw)){
-        const li=h.layout[HE.selected];
+        const li=layout[HE.selected];
         li.angle = (li.angle||0) - Math.PI/12; // -15°
         drawHangarInterior(); updateHEProps(); return;
       }
       if(hitBtn(btns.cw)){
-        const li=h.layout[HE.selected];
+        const li=layout[HE.selected];
         li.angle = (li.angle||0) + Math.PI/12; // +15°
         drawHangarInterior(); updateHEProps(); return;
       }
       if(hitBtn(btns.r90)){
-        const li=h.layout[HE.selected];
+        const li=layout[HE.selected];
         // Snap to nearest 90°: 0→90→180→270→0
         const curDeg = Math.round((li.angle||0)*180/Math.PI) % 360;
         const next = (Math.round(curDeg/90)*90 + 90) % 360;
@@ -694,7 +889,7 @@ function initHangarEditorEvents(){
         drawHangarInterior(); updateHEProps(); return;
       }
       if(hitBtn(btns.del)){
-        h.layout.splice(HE.selected,1);
+        layout.splice(HE.selected,1);
         HE.selected=null; HE._rotBtns=null;
         syncHangarItems(h); buildHEPalette(h);
         drawHangarInterior(); updateHEProps(); return;
@@ -708,8 +903,8 @@ function initHangarEditorEvents(){
       return;
     }
     // Hit test
-    for(let i=(h.layout||[]).length-1;i>=0;i--){
-      const li=h.layout[i];
+    for(let i=layout.length-1;i>=0;i--){
+      const li=layout[i];
       const ix=HE.panX+li.x*HE.ppm, iy=HE.panY+li.y*HE.ppm;
       const iw=li.w*HE.ppm, ih=li.h*HE.ppm;
       if(mx>=ix&&mx<=ix+iw&&my>=iy&&my<=iy+ih){
@@ -722,7 +917,7 @@ function initHangarEditorEvents(){
     HE.selected=null; drawHangarInterior(); updateHEProps();
   });
 
-  cv.addEventListener('mouseup', ()=>{HE.dragging=false; HE.panning=false;});
+  cv.addEventListener('mouseup', ()=>{HE.dragging=false; HE.panning=false; HE.resizing=false; HE.resizeEdge=null;});
   cv.addEventListener('contextmenu', e=>e.preventDefault());
 
   cv.addEventListener('wheel', e=>{
@@ -736,4 +931,55 @@ function initHangarEditorEvents(){
     HE.panY=my-(my-HE.panY)*f;
     drawHangarInterior();
   }, {passive:false});
+}
+
+// ═══════════════════════════════════════════════════════
+// SNAP-TO: walls & objects
+// ═══════════════════════════════════════════════════════
+function heSnapPosition(h, x, y, w, hh, skipIdx){
+  const sd = HE.snapDist; // snap threshold in meters
+  const layout = heGetLayout(h);
+  let sx = x, sy = y;
+
+  // Edges of the rect being placed/dragged
+  const L=x, R=x+w, T=y, B=y+hh;
+
+  // Snap to walls (0 and h.w/h.h)
+  if(Math.abs(L) < sd) sx = 0;
+  else if(Math.abs(R - h.w) < sd) sx = h.w - w;
+  if(Math.abs(T) < sd) sy = 0;
+  else if(Math.abs(B - h.h) < sd) sy = h.h - hh;
+
+  // Snap to wall offset zone
+  const wo = h.wallOffset || 0;
+  if(wo > 0){
+    if(Math.abs(L - wo) < sd) sx = wo;
+    else if(Math.abs(R - (h.w - wo)) < sd) sx = h.w - wo - w;
+    if(Math.abs(T - wo) < sd) sy = wo;
+    else if(Math.abs(B - (h.h - wo)) < sd) sy = h.h - wo - hh;
+  }
+
+  // Snap to other objects
+  layout.forEach((o, i) => {
+    if(i === skipIdx) return;
+    const oL=o.x, oR=o.x+o.w, oT=o.y, oB=o.y+o.h;
+    // Left edge → right edge of other
+    if(Math.abs((sx) - oR) < sd) sx = oR;
+    // Right edge → left edge of other
+    if(Math.abs((sx+w) - oL) < sd) sx = oL - w;
+    // Left edge → left edge of other (align)
+    if(Math.abs(sx - oL) < sd) sx = oL;
+    // Right edge → right edge of other
+    if(Math.abs((sx+w) - oR) < sd) sx = oR - w;
+    // Top edge → bottom edge of other
+    if(Math.abs(sy - oB) < sd) sy = oB;
+    // Bottom edge → top edge of other
+    if(Math.abs((sy+hh) - oT) < sd) sy = oT - hh;
+    // Top align
+    if(Math.abs(sy - oT) < sd) sy = oT;
+    // Bottom align
+    if(Math.abs((sy+hh) - oB) < sd) sy = oB - hh;
+  });
+
+  return {x: sx, y: sy};
 }

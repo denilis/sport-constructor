@@ -49,7 +49,9 @@ window.addEventListener('DOMContentLoaded',()=>{
       <button class="btnGhost" onclick="addABK()" style="margin:0;border-color:rgba(34,211,238,.3);color:var(--cyan)">+ Добавить АБК</button>
       <button class="btnGhost" onclick="addHangar()" style="margin:0;">+ Добавить спортивный ангар</button>
     </div>
+    <div id="abkNormsSection"></div>
   `;
+  renderAbkNormsUI();
   renderHangars();
   renderSettings();
   // Init hangar editor canvas events

@@ -15,7 +15,8 @@ function saveProject(){
     planBuildings: APP.planBuildings,
     planScale: APP.planScale,
     extraLibItems: APP.extraLibItems||[],
-    plotBoundary: APP.plotBoundary||null
+    plotBoundary: APP.plotBoundary||null,
+    abkNorms: window.ABK_NORMS||null
   };
   // Save only non-zero calc states
   CATALOG.forEach(it=>{
@@ -53,7 +54,9 @@ function loadProject(input){
       if(data.planScale) APP.planScale = data.planScale;
       if(data.extraLibItems) APP.extraLibItems = data.extraLibItems;
       APP.plotBoundary = data.plotBoundary || null;
+      if(data.abkNorms) window.ABK_NORMS = data.abkNorms;
       renderAllGrids(); recalc(); renderHangars(); drawPlan(); updatePlanBadge(); updateCalcBadge();
+      if(typeof renderAbkNormsUI==='function') renderAbkNormsUI();
       alert('Проект загружен: ' + (data.client||'без названия'));
     }catch(err){ alert('Ошибка загрузки: '+err.message); }
   };
