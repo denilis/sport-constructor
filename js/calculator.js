@@ -110,7 +110,7 @@ function renderCard(item) {
     const cached = APP.thumbCache?.[imgKey];
     const thumbSrc = APP.localThumbs?.[imgKey] ? localThumb : (cached || null);
     const thumbContent = thumbSrc
-      ? `<img src="${thumbSrc}" alt="${opt.n}" onerror="this.parentElement.innerHTML='<div class=\\'thumbGen\\' onclick=\\'genThumb(&quot;${item.id}&quot;,${oi},event)\\'>📷<br>Фото</div>'">`
+      ? `<img src="${thumbSrc}" alt="${opt.n}" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<div class=\\'thumbGen\\' onclick=\\'genThumb(&quot;${item.id}&quot;,${oi},event)\\'>📷<br>Фото</div>'">`
       : `<div class="thumbGen" onclick="genThumb('${item.id}',${oi},event)">📷<br>Фото</div>`;
     return `<div class="oVarRow${q>0?' active':''}">
       <div class="oVarThumb" id="thumb-${imgKey}" onmouseenter="showThumbFull(this)" onmouseleave="hideThumbFull()">${thumbContent}</div>

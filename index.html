@@ -4,12 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sport Constructor Pro</title>
+<!-- Critical CSS first -->
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/calculator.css?v=3">
-<link rel="stylesheet" href="css/planner.css">
-<link rel="stylesheet" href="css/render.css">
-<link rel="stylesheet" href="css/hangar-editor.css">
-<link rel="stylesheet" href="css/modals.css">
+<!-- Non-critical CSS: deferred -->
+<link rel="stylesheet" href="css/planner.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/render.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/hangar-editor.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/modals.css" media="print" onload="this.media='all'">
+<!-- DNS prefetch for API -->
+<link rel="dns-prefetch" href="https://api.anthropic.com">
 </head>
 <body>
 
@@ -775,23 +779,24 @@
   </div>
 </div>
 
-<!-- JS modules (load order matters) -->
+<!-- JS: core (sync, needed for first render) -->
 <script>const _v='?v=4';</script>
 <script src="js/keys.js?v=8"></script>
 <script src="js/config.js?v=9"></script>
 <script src="js/catalog.js?v=8"></script>
 <script src="js/utils.js?v=8"></script>
 <script src="js/app.js?v=8"></script>
-<script src="js/calculator.js?v=11"></script>
-<script src="js/sport-renderers.js?v=8"></script>
-<script src="js/planner.js?v=8"></script>
-<script src="js/hangar-editor.js?v=8"></script>
-<script src="js/render.js?v=9"></script>
-<script src="js/financial.js?v=8"></script>
-<script src="js/pdf.js?v=8"></script>
-<script src="js/ai-wizard.js?v=10"></script>
-<script src="js/help.js?v=8"></script>
-<script src="js/project.js?v=8"></script>
+<script src="js/calculator.js?v=12"></script>
+<!-- JS: deferred (loaded after DOM, non-blocking) -->
+<script defer src="js/sport-renderers.js?v=8"></script>
+<script defer src="js/planner.js?v=8"></script>
+<script defer src="js/hangar-editor.js?v=8"></script>
+<script defer src="js/render.js?v=9"></script>
+<script defer src="js/financial.js?v=8"></script>
+<script defer src="js/pdf.js?v=8"></script>
+<script defer src="js/ai-wizard.js?v=10"></script>
+<script defer src="js/help.js?v=8"></script>
+<script defer src="js/project.js?v=8"></script>
 
 </body>
 </html>
