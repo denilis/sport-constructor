@@ -696,7 +696,9 @@ function renderSettings() {
     const active=f===cat;
     html+=`<button onclick="window._settingsFilter='${cat}';renderSettings()" style="padding:4px 10px;border-radius:4px;border:1px solid ${active?'var(--gold)':'var(--bd)'};background:${active?'rgba(197,160,89,.15)':'transparent'};color:${active?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">${catNames[cat]}</button>`;
   });
-  html+=`<div style="flex:1"></div><button onclick="applyMarketPrices('${f}')" style="padding:5px 14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Рыночные цены${f!=='all'?' ('+catNames[f]+')':' (все)'}</button>`;
+  html+=`<div style="flex:1"></div>`;
+  html+=`<button onclick="openResearchImport()" style="padding:5px 14px;background:linear-gradient(135deg,#7c3aed,#9b6dff);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-right:6px">Импорт исследования</button>`;
+  html+=`<button onclick="applyMarketPrices('${f}')" style="padding:5px 14px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Рыночные цены${f!=='all'?' ('+catNames[f]+')':' (все)'}</button>`;
   html+='</div>';
   // Table
   html+=`<div style="overflow-y:auto;flex:1;"><table class="priceTable"><colgroup><col style="width:15%"><col style="width:12%"><col style="width:28%"><col style="width:17%"><col style="width:6%"><col style="width:22%"></colgroup><thead><tr><th style="color:#fff">Объект</th><th style="color:#fff">Вариант</th><th style="color:#fff">Комплектация</th><th style="text-align:right;color:#fff">Наша цена</th><th style="color:#fff">Ед.</th><th style="text-align:right;color:#fff">Рынок (средн.) ▾</th></tr></thead><tbody>`;
@@ -757,6 +759,229 @@ function applyMarketPrices(scope){
   alert('Обновлено '+changed+' позиций на рыночные цены.');
 }
 function updatePrice(id,oi,val){const item=CATALOG.find(i=>i.id===id);if(item)item.options[oi].p=+String(val).replace(/\s/g,'');}
+
+// ═══════════════════════════════════════════════════════
+// RESEARCH IMPORT — AI-powered price matching
+// ═══════════════════════════════════════════════════════
+let _researchMatches = []; // parsed AI results
+
+function openResearchImport(){
+  document.getElementById('researchModal').classList.add('show');
+  document.getElementById('researchResults').innerHTML = '';
+  document.getElementById('researchApplyBtn').style.display = 'none';
+  document.getElementById('researchStatus').textContent = '';
+  _researchMatches = [];
+}
+
+function loadResearchFile(inp){
+  const f = inp.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('researchRaw').value = e.target.result;
+    document.getElementById('researchStatus').textContent = `Файл загружен: ${f.name} (${(f.size/1024).toFixed(1)} КБ)`;
+  };
+  reader.readAsText(f, 'utf-8');
+}
+
+async function analyzeResearch(){
+  const key = CLAUDE_API_KEY;
+  if(!key){alert('API-ключ Claude не задан');return;}
+  const raw = document.getElementById('researchRaw').value.trim();
+  if(!raw){alert('Вставьте данные исследования');return;}
+
+  const statusEl = document.getElementById('researchStatus');
+  const resultsEl = document.getElementById('researchResults');
+  const btn = document.getElementById('researchAnalyzeBtn');
+  btn.disabled = true;
+  statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;"></div>Анализ данных (Claude AI)…';
+
+  // Build catalog summary for AI
+  const catalogSummary = CATALOG.map(item =>
+    item.options.map((opt,oi) => `${item.id}_${oi} | ${item.name} — ${opt.n} | ${item.cat} | ${fmtPrice(opt.p)} ₽/${item.unit}`).join('\n')
+  ).join('\n');
+  const bldSummary = BUILDING_TYPES.filter(b=>!b.isAbk).map(bt =>
+    `bld_${bt.id} | ${bt.name} | infra | ${fmtPrice(bt.price)} ₽/м²`
+  ).join('\n');
+
+  const prompt = `Ты аналитик рынка спортивного оборудования. Тебе даны:
+
+1. КАТАЛОГ ТОВАРОВ (id | Название — Вариант | Категория | Текущая цена):
+${catalogSummary}
+${bldSummary}
+
+2. ДАННЫЕ ИССЛЕДОВАНИЯ РЫНКА:
+${raw.substring(0, 8000)}
+
+ЗАДАЧА: Сопоставь каждую позицию из исследования с позицией каталога. Для каждого совпадения верни JSON-массив объектов:
+
+[
+  {
+    "catalogKey": "padel_std_0",
+    "researchName": "название из исследования",
+    "researchPrice": 1500000,
+    "competitor": "название поставщика/конкурента",
+    "confidence": "high|medium|low",
+    "note": "краткий комментарий о сопоставлении"
+  }
+]
+
+ПРАВИЛА:
+- catalogKey = id из каталога (например "padel_std_0", "tennis_hard_1", "bld_lstk")
+- Если в исследовании цена указана за м² — приведи к цене за единицу, умножив на площадь из каталога
+- Если одна позиция исследования подходит к нескольким вариантам — выбери наиболее близкий
+- confidence: high = точное совпадение, medium = похоже но не точно, low = только примерное соответствие
+- Если позиция из исследования не соответствует ничему — пропусти
+- Верни ТОЛЬКО JSON-массив, без маркдауна и пояснений`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}]})
+    });
+    const data = await res.json();
+    if(data.error){
+      statusEl.innerHTML = `<span style="color:var(--red)">Ошибка AI: ${data.error.message}</span>`;
+      btn.disabled = false;
+      return;
+    }
+    const text = data.content?.find(c=>c.type==='text')?.text || '';
+
+    // Parse JSON from response (handle markdown code blocks)
+    let json;
+    try {
+      const cleaned = text.replace(/```json?\s*/g,'').replace(/```/g,'').trim();
+      json = JSON.parse(cleaned);
+    } catch(e){
+      // Try to find JSON array in response
+      const m = text.match(/\[[\s\S]*\]/);
+      if(m) json = JSON.parse(m[0]);
+      else throw new Error('Не удалось распарсить ответ AI');
+    }
+
+    if(!Array.isArray(json) || !json.length){
+      statusEl.innerHTML = '<span style="color:var(--red)">AI не нашёл совпадений в данных исследования.</span>';
+      btn.disabled = false;
+      return;
+    }
+
+    _researchMatches = json;
+    renderResearchResults(json);
+    statusEl.innerHTML = `<span style="color:var(--green)">Найдено ${json.length} совпадений</span>`;
+    document.getElementById('researchApplyBtn').style.display = '';
+  } catch(err){
+    statusEl.innerHTML = `<span style="color:var(--red)">Ошибка: ${err.message}</span>`;
+  }
+  btn.disabled = false;
+}
+
+function renderResearchResults(matches){
+  const el = document.getElementById('researchResults');
+  const confColors = {high:'#4ade80', medium:'#fbbf24', low:'#f87171'};
+  const confLabels = {high:'Точно', medium:'Похоже', low:'Примерно'};
+
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead><tr style="border-bottom:1px solid var(--bd);color:var(--tx2);">
+      <th style="padding:6px;text-align:left;width:30px;"><input type="checkbox" checked onchange="toggleAllResearch(this.checked)"></th>
+      <th style="padding:6px;text-align:left;">Из исследования</th>
+      <th style="padding:6px;text-align:left;">Сопоставлено с каталогом</th>
+      <th style="padding:6px;text-align:right;">Текущая цена</th>
+      <th style="padding:6px;text-align:right;">Цена исследования</th>
+      <th style="padding:6px;text-align:right;">Δ</th>
+      <th style="padding:6px;text-align:center;">Точность</th>
+    </tr></thead><tbody>`;
+
+  matches.forEach((m, i) => {
+    // Find current price
+    let currentPrice = 0, catalogName = m.catalogKey;
+    if(m.catalogKey.startsWith('bld_')){
+      const btId = m.catalogKey.replace('bld_','');
+      const bt = BUILDING_TYPES.find(b=>b.id===btId);
+      if(bt){currentPrice = bt.price; catalogName = bt.name + ' (за м²)';}
+    } else {
+      const parts = m.catalogKey.split('_');
+      const oi = parseInt(parts.pop());
+      const itemId = parts.join('_');
+      const item = CATALOG.find(c=>c.id===itemId);
+      if(item && item.options[oi]){
+        currentPrice = item.options[oi].p;
+        catalogName = `${item.name} — ${item.options[oi].n}`;
+      }
+    }
+    const diff = currentPrice ? Math.round((m.researchPrice - currentPrice)/currentPrice*100) : 0;
+    const diffClr = diff > 10 ? '#f87171' : diff < -10 ? '#4ade80' : '#fff';
+    const diffSign = diff > 0 ? '+' : '';
+
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+      <td style="padding:6px;"><input type="checkbox" checked data-idx="${i}" class="researchCheck"></td>
+      <td style="padding:6px;color:#fff;"><b>${m.researchName||''}</b><br><span style="color:var(--tx3);font-size:10px;">${m.competitor||''}</span></td>
+      <td style="padding:6px;color:var(--cyan);">${catalogName}<br><span style="color:var(--tx4);font-size:10px;">${m.catalogKey}</span></td>
+      <td style="padding:6px;text-align:right;color:#fff;">${fmtPrice(currentPrice)}</td>
+      <td style="padding:6px;text-align:right;color:#fff;font-weight:600;">${fmtPrice(m.researchPrice)}</td>
+      <td style="padding:6px;text-align:right;color:${diffClr};font-weight:600;">${diffSign}${diff}%</td>
+      <td style="padding:6px;text-align:center;"><span style="color:${confColors[m.confidence]||'#aaa'};font-size:10px;font-weight:600;">${confLabels[m.confidence]||m.confidence}</span></td>
+    </tr>`;
+    if(m.note){
+      html += `<tr><td></td><td colspan="6" style="padding:2px 6px 6px;font-size:10px;color:var(--tx4);">${m.note}</td></tr>`;
+    }
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function toggleAllResearch(checked){
+  document.querySelectorAll('.researchCheck').forEach(cb => cb.checked = checked);
+}
+
+function applyResearchPrices(){
+  const checked = document.querySelectorAll('.researchCheck:checked');
+  if(!checked.length){alert('Выберите хотя бы одну позицию');return;}
+
+  let updated = 0, addedCompetitors = 0;
+
+  checked.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx);
+    const m = _researchMatches[idx];
+    if(!m) return;
+
+    if(m.catalogKey.startsWith('bld_')){
+      // Building type
+      const btId = m.catalogKey.replace('bld_','');
+      const bt = BUILDING_TYPES.find(b=>b.id===btId);
+      if(bt){
+        // Update MARKET_DATA competitor list
+        if(!MARKET_DATA[m.catalogKey]) MARKET_DATA[m.catalogKey] = {avg:null, c:[]};
+        MARKET_DATA[m.catalogKey].c.push({n:m.competitor||'Исследование', p:m.researchPrice});
+        // Recalc average
+        const prices = MARKET_DATA[m.catalogKey].c.filter(c=>c.p).map(c=>c.p);
+        if(prices.length) MARKET_DATA[m.catalogKey].avg = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+        addedCompetitors++;
+      }
+    } else {
+      // Catalog item
+      const parts = m.catalogKey.split('_');
+      const oi = parseInt(parts.pop());
+      const itemId = parts.join('_');
+      const mdKey = itemId + '_' + oi;
+
+      // Update MARKET_DATA
+      if(!MARKET_DATA[mdKey]) MARKET_DATA[mdKey] = {avg:null, c:[]};
+      MARKET_DATA[mdKey].c.push({n:m.competitor||'Исследование', p:m.researchPrice});
+      // Recalc average
+      const prices = MARKET_DATA[mdKey].c.filter(c=>c.p).map(c=>c.p);
+      if(prices.length) MARKET_DATA[mdKey].avg = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+      addedCompetitors++;
+    }
+    updated++;
+  });
+
+  renderSettings();
+  renderAllGrids();
+  recalc();
+  closeModal('researchModal');
+  alert(`Обновлено конкурентов: ${addedCompetitors}\nРыночные средние пересчитаны.\n\nЧтобы применить рыночные цены к вашему каталогу — нажмите "Рыночные цены" в настройках.`);
+}
 
 function resetCalc(){if(!confirm('Сбросить все выбранные объекты?'))return;APP.hangars=[];initCalc();}
 function goToPlanner(){switchModule('plan',document.querySelectorAll('.mTab')[2]);buildLibrary();}
