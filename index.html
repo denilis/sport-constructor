@@ -107,7 +107,9 @@
       <button class="projBtn" onclick="saveProject()">💾 Сохранить</button>
       <button class="projBtn" onclick="document.getElementById('projLoadIn').click()">📂 Загрузить</button>
       <input type="file" id="projLoadIn" accept=".json" style="display:none" onchange="loadProject(this)">
-      <button class="projBtn imp" onclick="document.getElementById('csvLoadIn').click()">📋 Импорт CSV</button>
+      <button class="projBtn imp" onclick="cloudSave()" id="cloudSaveBtn">☁️ Сохранить</button>
+      <button class="projBtn imp" onclick="cloudLoad()">☁️ Загрузить</button>
+      <button class="projBtn" onclick="document.getElementById('csvLoadIn').click()">📋 Импорт CSV</button>
       <input type="file" id="csvLoadIn" accept=".csv,.xlsx,.txt" style="display:none" onchange="importCSV(this)">
       <button class="projBtn" onclick="openImportTZ()">📝 Импорт ТЗ</button>
     </div>
@@ -822,6 +824,7 @@
 <script defer src="js/ai-wizard.js?v=11"></script>
 <script defer src="js/help.js?v=8"></script>
 <script defer src="js/project.js?v=8"></script>
+<script defer src="js/supabase.js?v=1"></script>
 
 </body>
 </html>
