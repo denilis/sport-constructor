@@ -568,6 +568,24 @@
   </div>
 </div>
 
+<!-- MODAL: AI Market Research -->
+<div class="mOverlay" id="aiResearchModal">
+  <div class="mBox" style="max-width:900px;width:95vw;max-height:90vh;display:flex;flex-direction:column;">
+    <h3 style="color:var(--cyan)">🔍 AI ИССЛЕДОВАНИЕ РЫНКА</h3>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:12px;">Claude AI проведёт исследование актуальных рыночных цен по выбранным направлениям. Выберите категории для анализа:</p>
+    <div id="aiResearchCatFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <button class="mOk" onclick="runAIResearch()" id="aiResearchRunBtn" style="background:linear-gradient(135deg,#0891b2,#22d3ee);border-color:var(--cyan);">🔍 Запустить исследование</button>
+      <div id="aiResearchStatus" style="font-size:11px;color:var(--tx3);"></div>
+    </div>
+    <div id="aiResearchResults" style="overflow-y:auto;flex:1;max-height:400px;"></div>
+    <div class="mFoot" style="margin-top:12px;">
+      <button class="mCancel" onclick="closeModal('aiResearchModal')">Закрыть</button>
+      <button class="mOk" id="aiResearchApplyBtn" onclick="applyAIResearchPrices()" style="display:none;">Применить рыночные цены</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Ruler distance -->
 <div class="mOverlay" id="rulerModal">
   <div class="mBox">

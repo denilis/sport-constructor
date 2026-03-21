@@ -1260,6 +1260,7 @@ function renderSettings() {
     html+=`<button onclick="(function(){var s=window._settingsFilterSet;s.has('${cat}')?s.delete('${cat}'):s.add('${cat}');renderSettings()})()" style="padding:4px 10px;border-radius:4px;border:1px solid ${active?'var(--gold)':'var(--bd)'};background:${active?'rgba(197,160,89,.15)':'transparent'};color:${active?'var(--gold2)':'#aaa'};font-size:11px;cursor:pointer">${catNames[cat]}</button>`;
   });
   html+=`<div style="flex:1"></div>`;
+  html+=`<button onclick="openAIResearch()" style="padding:5px 14px;background:linear-gradient(135deg,#0891b2,#22d3ee);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-right:6px">🔍 AI Исследование</button>`;
   html+=`<button onclick="openResearchImport()" style="padding:5px 14px;background:linear-gradient(135deg,#7c3aed,#9b6dff);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-right:6px">Импорт исследования</button>`;
   const mktScope = fSet.size===0 ? 'all' : Array.from(fSet).join(',');
   const mktLabel = fSet.size===0 ? ' (все)' : ' ('+Array.from(fSet).map(c=>catNames[c]).join(', ')+')';
@@ -1372,6 +1373,174 @@ function toggleResearchAll(on){
   const allCats = ['racket','team','athletics','fun','glamping','wellness','infra','prep'];
   window._researchCats = on ? new Set(allCats) : new Set();
   renderResearchCatFilter();
+}
+
+// ═══════════════════════════════════════════════════════
+// AI MARKET RESEARCH — Claude сам ищет рыночные цены
+// ═══════════════════════════════════════════════════════
+function openAIResearch(){
+  document.getElementById('aiResearchModal').classList.add('show');
+  document.getElementById('aiResearchResults').innerHTML = '';
+  document.getElementById('aiResearchApplyBtn').style.display = 'none';
+  document.getElementById('aiResearchStatus').textContent = '';
+  window._aiResearchMatches = [];
+  renderAIResearchCatFilter();
+}
+
+function renderAIResearchCatFilter(){
+  const catNames={racket:'🎾 Ракеточные',team:'⚽ Командные',athletics:'🏃 Атлетика',fun:'🎢 Развлечения',glamping:'🏕️ Глэмпинг',wellness:'💆 Велнес/СПА',infra:'🔧 Инфраструктура',prep:'🌿 Благоустройство'};
+  const cont = document.getElementById('aiResearchCatFilter');
+  if(!cont) return;
+  if(!window._aiResearchCats) window._aiResearchCats = new Set(['racket']);
+  const sel = window._aiResearchCats;
+  const allOn = sel.size === Object.keys(catNames).length;
+  let h = `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 10px;border-radius:5px;border:1px solid ${allOn?'var(--gold)':'var(--bd)'};background:${allOn?'rgba(197,160,89,.12)':'transparent'};font-size:12px;color:var(--gold2)">
+    <input type="checkbox" ${allOn?'checked':''} onchange="toggleAIResearchAll(this.checked)" style="accent-color:var(--gold)"> Все</label>`;
+  Object.entries(catNames).forEach(([cat,name])=>{
+    const checked = sel.has(cat);
+    h += `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 10px;border-radius:5px;border:1px solid ${checked?'var(--cyan)':'var(--bd)'};background:${checked?'rgba(34,211,238,.1)':'transparent'};font-size:12px;color:${checked?'var(--cyan)':'var(--tx3)'}">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleAIResearchCat('${cat}',this.checked)" style="accent-color:var(--cyan)"> ${name}</label>`;
+  });
+  // Count selected items
+  const selCatalog = CATALOG.filter(i => sel.has(i.cat));
+  const posCount = selCatalog.reduce((s,i) => s + i.options.length, 0);
+  h += `<div style="font-size:11px;color:var(--tx3);margin-left:8px;align-self:center">${posCount} позиций</div>`;
+  cont.innerHTML = h;
+}
+
+function toggleAIResearchCat(cat, on){
+  if(!window._aiResearchCats) window._aiResearchCats = new Set();
+  if(on) window._aiResearchCats.add(cat); else window._aiResearchCats.delete(cat);
+  renderAIResearchCatFilter();
+}
+
+function toggleAIResearchAll(on){
+  const allCats = ['racket','team','athletics','fun','glamping','wellness','infra','prep'];
+  window._aiResearchCats = on ? new Set(allCats) : new Set();
+  renderAIResearchCatFilter();
+}
+
+async function runAIResearch(){
+  const key = getClaudeKey();
+  if(!key){alert('API-ключ Claude не задан');return;}
+  const sel = window._aiResearchCats || new Set();
+  if(!sel.size){alert('Выберите хотя бы одно направление');return;}
+
+  const statusEl = document.getElementById('aiResearchStatus');
+  const btn = document.getElementById('aiResearchRunBtn');
+  btn.disabled = true;
+
+  const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес/СПА',infra:'Инфраструктура',prep:'Благоустройство'};
+  const scopeLabel = Array.from(sel).map(c=>catNames[c]||c).join(', ');
+  statusEl.innerHTML = `<div class="spinner" style="display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle"></div>Исследование рынка: ${scopeLabel}…`;
+
+  const filteredCatalog = CATALOG.filter(i => sel.has(i.cat));
+  const catalogSummary = filteredCatalog.map(item =>
+    item.options.map((opt,oi) => `${item.id}_${oi} | ${item.name} — ${opt.n} | ${item.cat} | ${fmtPrice(opt.p)} ₽/${item.unit}`).join('\n')
+  ).join('\n');
+  const bldSummary = sel.has('infra') ? BUILDING_TYPES.filter(b=>!b.isAbk).map(bt =>
+    `bld_${bt.id} | ${bt.name} | infra | ${fmtPrice(bt.price)} ₽/м²`
+  ).join('\n') : '';
+
+  const prompt = `Ты аналитик рынка спортивных сооружений и оборудования.
+
+ЗАДАЧА
+Проведи исследование рыночных цен для следующих позиций каталога. Найди актуальные цены на российском рынке (2024-2026).
+
+КАТАЛОГ ДЛЯ ИССЛЕДОВАНИЯ:
+${catalogSummary}
+${bldSummary}
+
+НАПРАВЛЕНИЯ: ${scopeLabel}
+
+ЧТО НУЖНО СДЕЛАТЬ:
+1. Для каждой позиции каталога найди среднерыночную цену на российском рынке.
+2. Укажи основных поставщиков/производителей.
+3. Дай диапазон цен (минимальная — максимальная).
+4. Отметь confidence: high (точные данные), medium (примерные), low (оценка).
+
+ПРАВИЛА
+- Цены в рублях, без НДС если возможно.
+- Учитывай тип единицы (за комплект, за м², за шт.).
+- Не выдумывай конкретных поставщиков если не уверен — пиши "рынок РФ".
+- researchPrice = средняя рыночная цена (число).
+- Если позиция слишком специфична и данных нет — ставь confidence: "low".
+
+ВЕРНИ ТОЛЬКО JSON-МАССИВ:
+[
+  {
+    "catalogKey": "padel_std_0",
+    "researchName": "Падел-корт стандартный (рынок РФ)",
+    "researchPrice": 1500000,
+    "competitor": "PadelVan, WPT, Mondo",
+    "confidence": "high|medium|low",
+    "note": "диапазон 1.2-1.8 млн, средняя 1.5 млн"
+  }
+]
+
+Без markdown. Без пояснений до или после JSON.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}]})
+    });
+    const data = await res.json();
+    if(data.error){
+      statusEl.innerHTML = `<span style="color:var(--red)">Ошибка AI: ${data.error.message}</span>`;
+      btn.disabled = false;
+      return;
+    }
+    const text = data.content?.find(c=>c.type==='text')?.text || '';
+    let json;
+    try {
+      const cleaned = text.replace(/```json?\s*/g,'').replace(/```/g,'').trim();
+      json = JSON.parse(cleaned);
+    } catch(e){
+      const m = text.match(/\[[\s\S]*\]/);
+      if(m) json = JSON.parse(m[0]);
+      else throw new Error('Не удалось распарсить ответ AI');
+    }
+    if(!Array.isArray(json) || !json.length){
+      statusEl.innerHTML = '<span style="color:var(--red)">AI не нашёл данных по выбранным направлениям</span>';
+      btn.disabled = false;
+      return;
+    }
+    window._aiResearchMatches = json;
+    renderResearchResults(json, 'aiResearchResults');
+    statusEl.innerHTML = `<span style="color:var(--green)">Найдено ${json.length} позиций</span>`;
+    document.getElementById('aiResearchApplyBtn').style.display = '';
+  } catch(err){
+    statusEl.innerHTML = `<span style="color:var(--red)">Ошибка: ${err.message}</span>`;
+  }
+  btn.disabled = false;
+}
+
+function applyAIResearchPrices(){
+  const matches = window._aiResearchMatches || [];
+  const checks = document.querySelectorAll('#aiResearchResults .researchCheck');
+  let applied = 0;
+  checks.forEach(cb => {
+    if(!cb.checked) return;
+    const idx = parseInt(cb.dataset.idx);
+    const m = matches[idx];
+    if(!m) return;
+    if(m.catalogKey.startsWith('bld_')){
+      const btId = m.catalogKey.replace('bld_','');
+      const bt = BUILDING_TYPES.find(b=>b.id===btId);
+      if(bt){ bt.price = m.researchPrice; applied++; }
+    } else {
+      const parts = m.catalogKey.split('_');
+      const oi = parseInt(parts.pop());
+      const itemId = parts.join('_');
+      const item = CATALOG.find(c=>c.id===itemId);
+      if(item && item.options[oi]){ item.options[oi].p = m.researchPrice; applied++; }
+    }
+  });
+  renderSettings(); renderAllGrids(); recalc();
+  closeModal('aiResearchModal');
+  alert(`Применено ${applied} рыночных цен`);
 }
 
 function loadResearchFile(inp){
@@ -1511,8 +1680,8 @@ CONFIDENCE
   btn.disabled = false;
 }
 
-function renderResearchResults(matches){
-  const el = document.getElementById('researchResults');
+function renderResearchResults(matches, targetId){
+  const el = document.getElementById(targetId || 'researchResults');
   const confColors = {high:'#4ade80', medium:'#fbbf24', low:'#f87171'};
   const confLabels = {high:'Точно', medium:'Похоже', low:'Примерно'};
 
