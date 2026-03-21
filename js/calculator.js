@@ -1342,6 +1342,36 @@ function openResearchImport(){
   document.getElementById('researchApplyBtn').style.display = 'none';
   document.getElementById('researchStatus').textContent = '';
   _researchMatches = [];
+  renderResearchCatFilter();
+}
+
+function renderResearchCatFilter(){
+  const catNames={racket:'🎾 Ракеточные',team:'⚽ Командные',athletics:'🏃 Атлетика',fun:'🎢 Развлечения',glamping:'🏕️ Глэмпинг',wellness:'💆 Велнес/СПА',infra:'🔧 Инфраструктура',prep:'🌿 Благоустройство'};
+  const cont = document.getElementById('researchCatFilter');
+  if(!cont) return;
+  if(!window._researchCats) window._researchCats = new Set(Object.keys(catNames));
+  const sel = window._researchCats;
+  const allOn = sel.size === Object.keys(catNames).length;
+  let h = `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:4px;border:1px solid ${allOn?'var(--gold)':'var(--bd)'};background:${allOn?'rgba(197,160,89,.12)':'transparent'};font-size:11px;color:var(--gold2)">
+    <input type="checkbox" ${allOn?'checked':''} onchange="toggleResearchAll(this.checked)" style="accent-color:var(--gold)"> Все</label>`;
+  Object.entries(catNames).forEach(([cat,name])=>{
+    const checked = sel.has(cat);
+    h += `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:4px;border:1px solid ${checked?'var(--cyan)':'var(--bd)'};background:${checked?'rgba(34,211,238,.08)':'transparent'};font-size:11px;color:${checked?'var(--cyan)':'var(--tx3)'}">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleResearchCat('${cat}',this.checked)" style="accent-color:var(--cyan)"> ${name}</label>`;
+  });
+  cont.innerHTML = h;
+}
+
+function toggleResearchCat(cat, on){
+  if(!window._researchCats) window._researchCats = new Set();
+  if(on) window._researchCats.add(cat); else window._researchCats.delete(cat);
+  renderResearchCatFilter();
+}
+
+function toggleResearchAll(on){
+  const allCats = ['racket','team','athletics','fun','glamping','wellness','infra','prep'];
+  window._researchCats = on ? new Set(allCats) : new Set();
+  renderResearchCatFilter();
 }
 
 function loadResearchFile(inp){
@@ -1366,13 +1396,25 @@ async function analyzeResearch(){
   btn.disabled = true;
   statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;"></div>Анализ данных (Claude AI)…';
 
-  // Build catalog summary for AI
-  const catalogSummary = CATALOG.map(item =>
+  // Filter catalog by selected research categories
+  const researchCats = window._researchCats || new Set(['racket','team','athletics','fun','glamping','wellness','infra','prep']);
+  const filteredCatalog = CATALOG.filter(item => researchCats.has(item.cat));
+  if(!filteredCatalog.length){
+    statusEl.innerHTML = '<span style="color:var(--red)">Выберите хотя бы одно направление исследования</span>';
+    btn.disabled = false;
+    return;
+  }
+  const catNames={racket:'Ракеточные',team:'Командные',athletics:'Атлетика',fun:'Развлечения',glamping:'Глэмпинг',wellness:'Велнес/СПА',infra:'Инфраструктура',prep:'Благоустройство'};
+  const scopeLabel = researchCats.size === 8 ? 'все категории' : Array.from(researchCats).map(c=>catNames[c]||c).join(', ');
+  statusEl.innerHTML = `<div class="spinner" style="display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;"></div>Анализ: ${scopeLabel}…`;
+
+  // Build catalog summary for AI (only selected categories)
+  const catalogSummary = filteredCatalog.map(item =>
     item.options.map((opt,oi) => `${item.id}_${oi} | ${item.name} — ${opt.n} | ${item.cat} | ${fmtPrice(opt.p)} ₽/${item.unit}`).join('\n')
   ).join('\n');
-  const bldSummary = BUILDING_TYPES.filter(b=>!b.isAbk).map(bt =>
+  const bldSummary = researchCats.has('infra') ? BUILDING_TYPES.filter(b=>!b.isAbk).map(bt =>
     `bld_${bt.id} | ${bt.name} | infra | ${fmtPrice(bt.price)} ₽/м²`
-  ).join('\n');
+  ).join('\n') : '';
 
   const prompt = `Ты аналитик рынка спортивных сооружений, оборудования и инфраструктурных решений.
 

@@ -546,6 +546,10 @@
   <div class="mBox" style="max-width:900px;width:95vw;max-height:90vh;display:flex;flex-direction:column;">
     <h3>ИМПОРТ ИССЛЕДОВАНИЯ РЫНКА</h3>
     <p style="font-size:11px;color:var(--tx3);margin-bottom:12px;">Загрузите файл с результатами исследования рынка (CSV, TXT, Excel-копия). AI сопоставит найденные цены с вашим каталогом.</p>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--tx3);margin-bottom:6px;letter-spacing:.5px;font-weight:600">НАПРАВЛЕНИЯ ИССЛЕДОВАНИЯ:</div>
+      <div id="researchCatFilter" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
       <button class="pBtn" onclick="document.getElementById('researchFileIn').click()" style="background:rgba(34,211,238,.15);border-color:var(--cyan);color:var(--cyan);">Загрузить файл</button>
       <input type="file" id="researchFileIn" accept=".csv,.txt,.tsv,.xlsx" style="display:none" onchange="loadResearchFile(this)">
