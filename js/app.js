@@ -33,6 +33,29 @@ function switchModule(id, btn) {
 }
 
 // ═══════════════════════════════════════════════════════
+// THEME TOGGLE
+// ═══════════════════════════════════════════════════════
+function toggleTheme() {
+  const root = document.documentElement;
+  const isLight = root.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = isLight ? '☀️' : '🌙';
+}
+// Restore saved theme
+(function(){
+  const saved = localStorage.getItem('theme');
+  if(saved === 'light') {
+    document.documentElement.classList.add('light');
+    // Update button after DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('themeBtn');
+      if(btn) btn.textContent = '☀️';
+    });
+  }
+})();
+
+// ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{

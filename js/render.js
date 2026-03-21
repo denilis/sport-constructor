@@ -57,6 +57,133 @@ function hangarContentsEn(b){
 }
 
 // ═══════════════════════════════════════════════════════
+// RENDER PROMPT SYSTEM
+// ═══════════════════════════════════════════════════════
+const RENDER_SYSTEM_PROMPT = `You are generating an architectural visualization for Sport Constructor Pro.
+
+CORE RULE
+You must visualize the actual project structure, not invent a new one.
+
+SPATIAL HIERARCHY
+1. Real site / terrain / reference base
+2. Building placement on site
+3. Building massing and form
+4. Outdoor functions
+5. Interior functions only if the view is cutaway
+
+DO NOT
+- redesign the masterplan,
+- relocate buildings,
+- rotate buildings unless instructed,
+- change site geometry,
+- expand the territory,
+- invent roads, parking areas, or sports zones that are not part of the project,
+- replace one building type with another,
+- turn the project into fantasy concept art.
+
+YOU MUST
+- preserve the actual site composition,
+- preserve the actual placement logic,
+- preserve scale relationships,
+- preserve the chosen building types,
+- preserve the main open and closed functions,
+- improve realism, materials, lighting, landscape readability, and presentation quality only.
+
+BUILDING MATERIAL LOGIC
+- tent_cold / tent_warm = tensile / fabric sports structure
+- air = air-supported dome
+- lstk = steel / sandwich panel sports building
+- wood = engineered timber / warm wood architectural language
+- concrete = capital masonry / concrete building
+- abk = administrative and service building
+
+FUNCTIONAL READABILITY
+- Padel courts must read as padel courts with glass walls and proper turf.
+- Tennis courts must reflect the selected surface.
+- Ice arena must read as an ice venue, not as a generic hall.
+- Pools must reflect whether they are indoor or outdoor, sport or leisure.
+- Do not add functions that are absent from the project structure.
+
+OUTPUT STYLE
+Photorealistic architectural visualization. Believable materials. Natural shadows. Presentation quality suitable for commercial proposal. No fantasy exaggeration.`;
+
+const RENDER_ICE_SUPPLEMENT = `\n\nThis project includes an indoor ice arena. It must read as a true ice facility with boards and protective glass. If hockey-oriented: show shooting zone, off-ice training halls, strength gym. Show locker rooms, coach rooms, referee room, drying rooms, technical areas, spectator zones if present. Do not reduce the complex to "ice inside a box". Show a coherent sports training environment with believable service infrastructure. Photorealistic ice arena visualization with strong functional readability.`;
+
+function buildRenderPrompt(angle, hasRef, bldListStr, envDesc, bldPosStr, hasIce) {
+  let p = RENDER_SYSTEM_PROMPT + '\n\n';
+
+  if(hasRef && angle === 'top') {
+    p += `Use the reference image as the exact spatial and environmental base. Transform this satellite/aerial image into a photorealistic architectural visualization. Replace only the project markers with realistic buildings. Preserve exact site geometry, terrain, roads, parking, vegetation, neighboring context. Do not redesign the site.
+
+Project structures and functions:
+${bldListStr}
+
+Environment: ${envDesc}
+
+Photorealistic aerial architectural visualization, high-end development presentation, natural daylight, realistic shadows, ultra-detailed but believable materials, clear sports facility identity, 8K quality.`;
+  }
+
+  if(hasRef && angle === '45') {
+    p += `Use the reference image and site layout as the exact project base. Create a photorealistic 45-degree aerial perspective. Site composition, building placement, spacing, road logic must remain consistent with reference.
+
+Buildings and structures:
+${bldListStr}
+${bldPosStr}
+
+Environment: ${envDesc}
+
+Photorealistic sports development visualization, premium but realistic, natural light consistent with reference, clear circulation, believable landscaping, commercial proposal quality.`;
+  }
+
+  if(hasRef && angle === 'cutaway') {
+    p += `Use the reference image as the exact site base. Create a photorealistic 60-degree cutaway visualization. Preserve real site context, building placement, external geometry. Roof transparency only to reveal actual interior functions.
+
+Visible interior functions:
+${bldListStr}
+
+If present, show: padel courts with glass walls and turf, tennis courts with correct surface, ice arena as true ice venue, training halls, service zones only where they exist.
+
+Surrounding terrain from reference must remain visible. Photorealistic cutaway, premium presentation quality, realistic materials, no fantasy elements.`;
+  }
+
+  if(!hasRef && angle === 'top') {
+    p += `Generate a photorealistic aerial visualization from 70-degree top-down angle. Use only actual project structure. Do not invent additional buildings.
+
+Project structures:
+${bldListStr}
+
+Environment: ${envDesc}
+
+Realistic scale, natural daylight, believable materials, clear sports identity, high-end but practical architectural presentation.`;
+  }
+
+  if(!hasRef && angle === '45') {
+    p += `Generate a photorealistic 45-degree aerial perspective. Use only actual project structure. Do not invent new buildings or circulation logic.
+
+Project structures:
+${bldListStr}
+
+Environment: ${envDesc}
+
+Each building must reflect its construction type and function. Premium commercial architectural visualization, realistic proportions, believable atmosphere.`;
+  }
+
+  if(!hasRef && angle === 'cutaway') {
+    p += `Generate a photorealistic 60-degree cutaway visualization. Use only real project composition. Do not add zones that don't exist.
+
+Project structures:
+${bldListStr}
+
+Show partial roof transparency only for actual internal functions: sports halls, courts, ice arena, training zones, admin areas if present.
+
+Photorealistic cutaway axonometric, magazine-quality but realistic, clean spatial clarity, believable materials, no fantasy exaggeration.`;
+  }
+
+  if(hasIce) p += RENDER_ICE_SUPPLEMENT;
+  return p;
+}
+
+// ═══════════════════════════════════════════════════════
 // REFERENCE IMAGE (satellite map)
 // ═══════════════════════════════════════════════════════
 function captureMapAsRef(){
@@ -169,8 +296,6 @@ function genPrompts(){
     if(lndKeepTrees) envDesc += ' Preserved mature trees around the complex.';
   }
 
-  const STYLE = 'Photorealistic drone aerial photography, summer daytime, bright sunlight, soft shadows. Ultra-detailed textures. High-end sports resort aesthetic. 8K architectural visualization.';
-
   // Build concise building list in English
   function bldList(withContents){
     const lines = [];
@@ -201,76 +326,15 @@ function genPrompts(){
     return '\nApproximate positions on site:\n' + lines.join('\n');
   }
 
+  // Check if project has ice
+  const hasIce = APP.planBuildings.some(b => (b.label||'').includes('Лед')) ||
+                 APP.hangars.some(h => h.layout?.some(l => l.itemId?.includes('ice')));
+
   let topPrompt, nwPrompt, sePrompt;
 
-  if(hasRef){
-    // ═══ REFERENCE MODE — prompts for img2img with satellite photo ═══
-
-    // VARIANT: Top view with reference
-    topPrompt = `Transform this satellite/aerial photograph into a photorealistic architectural visualization. Replace the colored rectangular markers with realistic 3D buildings as described below. Keep the exact camera angle and all surrounding terrain from the original photo.
-
-Buildings to place (where the blue rectangles are marked):
-${bldList(false)}
-
-${envDesc}
-
-Each building must match its described material and dimensions. Shadows must be consistent with the sun direction visible in the original photo. ${STYLE}`;
-
-    // VARIANT: Perspective with reference
-    nwPrompt = `Using this aerial site photograph as the real environment, generate a photorealistic 45-degree perspective view of the sports complex being built on this exact location. The buildings should appear as if actually constructed on this terrain.
-
-Buildings on site:
-${bldList(true)}
-${bldPositions()}
-
-Match the lighting direction and season from the reference photo. Buildings should cast realistic shadows on the actual terrain. Dense landscaping between structures, walking paths with people.
-
-${STYLE}`;
-
-    // VARIANT: Cutaway with reference
-    sePrompt = `Based on this satellite photo of the development site, create an architectural cutaway visualization at 60 degrees. Show the buildings placed on the real terrain with partially transparent roofs revealing interior layouts.
-
-Buildings with visible interiors:
-${bldList(true)}
-
-Inside sport buildings: visible court markings, playing surfaces, equipment. Padel courts with glass walls. Tennis courts with white lines. The surrounding terrain and roads from the reference photo must remain visible and accurate.
-
-Architectural magazine quality, clean daylight, section-cut walls. ${STYLE}`;
-
-  } else {
-    // ═══ ABSTRACT MODE — no reference image ═══
-
-    topPrompt = `Aerial top-down view at 70 degrees of a premium sports and recreation complex with ${bs.length} buildings.
-
-Buildings:
-${bldList(false)}
-
-Materials: Sport hangars have dark grey metal sandwich panel walls and roofs. Wellness and hospitality buildings have warm wood cladding with large glass windows. Each building has a clean white label sign on the roof.
-
-Environment: ${envDesc}
-
-${STYLE}`;
-
-    nwPrompt = `Aerial perspective view at 45 degrees of a premium sports complex, golden hour lighting, long dramatic shadows.
-
-${bs.length} buildings visible from foreground to background:
-${bldList(true)}
-
-Each building shows its unique architectural style: sport hangars with grey metal panels, wellness buildings with wood and glass. Dense green landscaping between buildings, walking paths, outdoor seating areas with umbrellas.
-
-${STYLE}`;
-
-    sePrompt = `Architectural cutaway axonometric view at 60 degrees of a sports complex. Roofs are partially transparent or removed, revealing interior layouts from above.
-
-Buildings with visible interiors:
-${bldList(true)}
-
-Inside each sport building: visible court markings, playing surfaces, equipment. Padel courts show glass walls and artificial turf. Tennis courts show white line markings. Ice arenas show rink with boards. Football fields show green turf with white markings.
-
-Walls shown in architectural section. Clean bright daylight. Exterior landscaping visible. Architectural magazine quality illustration.
-
-${STYLE}`;
-  }
+  topPrompt = buildRenderPrompt('top', hasRef, bldList(false), envDesc, '', hasIce);
+  nwPrompt = buildRenderPrompt('45', hasRef, bldList(true), envDesc, bldPositions(), hasIce);
+  sePrompt = buildRenderPrompt('cutaway', hasRef, bldList(true), envDesc, '', hasIce);
 
   // Set outputs
   ['pTop','promptOut'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=topPrompt;});
@@ -552,17 +616,33 @@ async function runAI(){
 
   const prompt=`Ты архитектурный консультант по мастер-плану спортивно-рекреационных комплексов.
 
-ПРОЕКТ: Спортивный комплекс. Участок ${pw?pw+'×'+pl+'м':'размер не задан'}.
+ПРОЕКТ
+Участок: ${pw?pw+'×'+pl+'м':'размер не задан'}
+Суммарное пятно: ${totalArea} м²
 
-РАССТАНОВКА (суммарное пятно: ${totalArea} м²):
+РАССТАНОВКА
 ${desc}
 
-Дай краткий анализ (максимум 180 слов, по пунктам):
-1. Зонирование — конфликты «шумная/тихая» зона
-2. Потоки посетителей — логика маршрутов
-3. Инсоляция и виды — ориентация зданий
-4. КПЗ — плотность застройки
-5. Конкретные рекомендации по перемещению или повороту объектов`;
+ЗАДАЧА
+Дай короткий, прикладной анализ расстановки с точки зрения: логики зон, потоков посетителей, эксплуатационной удобности, плотности, конфликтов функций, возможных улучшений.
+
+ВАЖНЫЕ ПРАВИЛА
+- Не выдумывай внешние данные.
+- Если по входу нельзя уверенно судить об инсоляции, сторонах света, реальном ландшафте — так и напиши коротко.
+- Не пересказывай входные данные.
+- Пиши только то, что помогает реально поправить генплан.
+
+ФОРМАТ
+Максимум 180 слов.
+
+Структура:
+1. Сильные стороны зонирования
+2. Конфликты и слабые места
+3. Потоки и логистика
+4. Плотность и использование участка
+5. 3-5 конкретных рекомендаций, сформулированных как действия
+
+Стиль: коротко, профессионально, без воды.`;
 
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
@@ -608,20 +688,37 @@ async function runRenderAI(){
     budgets.push(`Ангар ${i+1} (${bt.name}): ${area} м² = ${fmt(cost)}`);
   });
 
-  const prompt=`Ты опытный девелопер и архитектурный консультант. Проведи развёрнутый анализ спортивного комплекса.
+  const prompt=`Ты опытный девелопер спортивной инфраструктуры и консультант по функционально-коммерческой логике объектов.
 
-ОБЪЕКТЫ НА ПЛАНЕ (пятно: ${totalArea} м²):
+ОБЪЕКТЫ НА ПЛАНЕ
+Суммарное пятно: ${totalArea} м²
 ${desc}
 
-БЮДЖЕТ (итого ${fmt(totalBudget)}):
-${budgets.join('\n')}
+БЮДЖЕТ
+Итого: ${fmt(totalBudget)}
+${budgets.join('\\n')}
 
-Структура ответа (max 400 слов):
-1. Функциональная логика комплекса — сильные стороны и слабые места текущей расстановки
-2. Коммерческий потенциал — какие зоны дают основную выручку, на что делать ставку
-3. Риски — что может не сработать на практике
-4. Топ-3 конкретных изменения которые повысят доходность или удобство
-5. Итоговая оценка концепции`;
+ЗАДАЧА
+Оцени концепцию проекта с точки зрения: функциональной логики, коммерческого потенциала, рисков реализации, устойчивости эксплуатации, точек улучшения.
+
+ПРАВИЛА
+- Не выдумывай рынок, трафик, продажи, если этих данных нет.
+- Если говоришь о выручке, опирайся только на типовую бизнес-логику состава комплекса.
+- Если вывод вероятностный, так и обозначай его.
+- Не пересказывай бюджет и состав объектов.
+- Давай конкретику.
+
+ФОРМАТ
+Максимум 400 слов.
+
+Структура:
+1. Функциональная логика комплекса
+2. Потенциал доходных зон
+3. Ключевые риски
+4. Топ-3 изменения с максимальным эффектом
+5. Итоговая оценка концепции по шкале 1-10 с кратким объяснением
+
+Стиль: деловой, прямой, профессиональный.`;
 
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{

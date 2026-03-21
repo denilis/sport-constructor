@@ -1,0 +1,169 @@
+/* ═══════════════════════════════════
+   LIGHT THEME — Sport Constructor Pro
+   Toggle: document.documentElement.classList.toggle('light')
+═══════════════════════════════════ */
+:root.light {
+  --bg0: #f0f2f5;
+  --bg1: #ffffff;
+  --bg2: #f8f9fb;
+  --bg3: #eef1f5;
+  --bg4: #e2e6ed;
+  --bd:  #d5dbe5;
+  --bd2: #c0c8d8;
+  --bd3: #a8b4c8;
+  --tx:  #1a2030;
+  --tx2: #4a5568;
+  --tx3: #7a8598;
+  --tx4: #b0b8c5;
+  --gold:  #9a7830;
+  --gold2: #7a6020;
+  --gold3: #5a4510;
+  --blue:  #3b6de8;
+  --green: #1a9e55;
+  --red:   #d43030;
+  --amber: #c58a10;
+  --purple:#7c4dff;
+  --cyan:  #0891b2;
+}
+
+/* ── Scrollbars ── */
+:root.light ::-webkit-scrollbar-thumb { background: var(--bd2); }
+
+/* ── Body & backgrounds ── */
+:root.light body { background: var(--bg0); color: var(--tx); }
+
+/* ── Header ── */
+:root.light #appHeader { background: #fff; border-bottom-color: var(--bd); box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+:root.light .appLogo { border-right-color: var(--bd); }
+:root.light .mTab:hover { background: rgba(0,0,0,.03); }
+:root.light .mTab.active { background: rgba(154,120,48,.06); }
+
+/* ── Cards ── */
+:root.light .oCard { background: #fff; border-color: var(--bd); box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+:root.light .oCard:hover { background: #fafbfd; border-color: var(--bd2); }
+:root.light .oCard.sel { background: rgba(154,120,48,.04); border-color: var(--gold); }
+:root.light .oVarRow:hover { background: var(--bg3); }
+:root.light .oVarRow.active { background: rgba(26,158,85,.06); border-color: rgba(26,158,85,.25); }
+:root.light .oSpecTag { background: #fff; border-color: var(--bd); color: var(--tx2); }
+:root.light .oVarRow.active .oSpecTag { background: rgba(26,158,85,.06); border-color: rgba(26,158,85,.2); }
+:root.light .oVarThumb { background: var(--bg3); border-color: var(--bd); }
+
+/* ── Quantity box ── */
+:root.light .qtyBox { background: #fff; border-color: var(--bd); }
+:root.light .qBtn:hover { background: var(--gold); color: #fff; }
+:root.light .qVal { color: var(--tx); }
+
+/* ── Right sidebar ── */
+:root.light #calcRight { background: #fff; border-left-color: var(--bd); }
+:root.light .sumHead { background: var(--bg2); }
+:root.light .plotTrack { background: rgba(0,0,0,.06); }
+:root.light .sumFoot { background: var(--bg2); }
+:root.light .sumItem { border-bottom-color: rgba(0,0,0,.04); }
+:root.light .btnGold { color: #fff; }
+:root.light .btnGhost { border-color: var(--bd); }
+:root.light .btnGhost:hover { border-color: var(--tx2); }
+
+/* ── Tabs ── */
+:root.light #calcTabs { background: #fff; }
+:root.light .cTab:hover { color: var(--tx); }
+
+/* ── Building cards ── */
+:root.light .bCard { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+:root.light .bCardHead { background: var(--bg2); }
+:root.light .bField select,
+:root.light .bField input { background: #fff; border-color: var(--bd); color: var(--tx); }
+
+/* ── Price table ── */
+:root.light .priceTable th { background: var(--bg2); color: var(--tx); }
+:root.light .priceTable td { color: var(--tx); border-bottom-color: rgba(0,0,0,.06); }
+:root.light .priceTable tr:hover td { background: rgba(0,0,0,.02); }
+:root.light .priceInput {
+  background: rgba(0,0,0,.03); color: var(--tx);
+  border-bottom-color: rgba(0,0,0,.15);
+}
+:root.light .priceInput:focus { background: rgba(0,0,0,.05); border-bottom-color: var(--blue); }
+
+/* ── Modals ── */
+:root.light .mOverlay { background: rgba(0,0,0,.35); }
+:root.light .mBox { background: #fff; border-color: var(--bd); box-shadow: 0 8px 32px rgba(0,0,0,.12); }
+:root.light .mField input,
+:root.light .mField select { background: #fff; }
+
+/* ── AI Wizard ── */
+:root.light #aiWizModal { background: rgba(0,0,0,.3); }
+:root.light .aiWizBox { background: #fff; border-color: var(--bd); box-shadow: 0 8px 32px rgba(0,0,0,.12); }
+:root.light .aiMsg.bot { background: var(--bg3); }
+:root.light .aiMsg.user { background: rgba(124,77,255,.1); }
+:root.light .aiMsg.system { background: rgba(26,158,85,.08); }
+:root.light .aiWizInput textarea { background: #fff; border-color: var(--bd); color: var(--tx); }
+
+/* ── Financial ── */
+:root.light .finCard { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+:root.light .finPanel { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+:root.light .finTbl td { border-bottom-color: rgba(0,0,0,.06); }
+
+/* ── Planner ── */
+:root.light #planCanvas { background: #fff; }
+:root.light .planToolbar { background: #fff; border-color: var(--bd); }
+
+/* ── Hangar editor ── */
+:root.light .abkPanel { background: #fff; }
+:root.light .abkList { background: var(--bg2); border-color: var(--bd); }
+:root.light .hItem { background: #fff; border-color: var(--bd); }
+:root.light .hSel { background: var(--bg3); }
+
+/* ── Help & misc ── */
+:root.light .helpBtn { color: var(--tx2); border-color: var(--bd); }
+:root.light .helpBtn:hover { color: var(--tx); background: var(--bg3); }
+
+/* ── Override inline color:#fff in dynamically generated HTML ── */
+:root.light [style*="color:#fff"],
+:root.light [style*="color: #fff"],
+:root.light [style*="color:white"] {
+  color: var(--tx) !important;
+}
+:root.light [style*="color:#ccc"],
+:root.light [style*="color: #ccc"] {
+  color: var(--tx2) !important;
+}
+:root.light [style*="color:#888"],
+:root.light [style*="color: #888"],
+:root.light [style*="color:#aaa"],
+:root.light [style*="color: #aaa"],
+:root.light [style*="color:#999"],
+:root.light [style*="color: #999"],
+:root.light [style*="color:#666"],
+:root.light [style*="color: #666"] {
+  color: var(--tx3) !important;
+}
+
+/* Override inline backgrounds */
+:root.light [style*="background:rgba(0,0,0,"],
+:root.light [style*="background: rgba(0,0,0,"] {
+  background: rgba(0,0,0,.03) !important;
+}
+:root.light [style*="background:var(--bg1)"] { background: #fff !important; }
+:root.light [style*="background:var(--bg2)"] { background: var(--bg2) !important; }
+:root.light [style*="background:var(--bg3)"] { background: var(--bg3) !important; }
+
+/* Override inline borders */
+:root.light [style*="border-bottom:1px solid rgba(255,255,255,"],
+:root.light [style*="border:1px solid rgba(255,255,255,"] {
+  border-color: rgba(0,0,0,.08) !important;
+}
+
+/* ABK modal and other dynamic modals */
+:root.light [style*="background:var(--bg2);border:1px solid var(--bd)"] {
+  box-shadow: 0 8px 32px rgba(0,0,0,.1) !important;
+}
+
+/* Canvas overlays */
+:root.light .hPickerGroup { border-color: var(--bd) !important; }
+
+/* ── Theme toggle button ── */
+.themeToggle {
+  background: none; border: 1px solid var(--bd); border-radius: 6px;
+  color: var(--tx2); cursor: pointer; padding: 5px 8px; font-size: 14px;
+  transition: all .15s; display: flex; align-items: center; gap: 4px;
+}
+.themeToggle:hover { color: var(--tx); border-color: var(--bd2); }

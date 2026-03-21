@@ -12,6 +12,8 @@
 <link rel="stylesheet" href="css/render.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/hangar-editor.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/modals.css" media="print" onload="this.media='all'">
+<!-- Light theme -->
+<link rel="stylesheet" href="css/theme-light.css">
 <!-- DNS prefetch for API -->
 <link rel="dns-prefetch" href="https://api.anthropic.com">
 </head>
@@ -41,6 +43,7 @@
     </button>
   </div>
   <div class="appHeaderRight">
+    <button class="themeToggle" onclick="toggleTheme()" title="Переключить тему" id="themeBtn">🌙</button>
     <button class="helpBtn" onclick="openHelp()" title="Инструкция">?</button>
     <button class="aiWizBtn" onclick="openAIWizard()"><svg class="aiWizIco" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7z" fill="url(#brGrad)"/><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z" fill="#9B6DFF"/><path d="M8.5 9.5h2v3h-2zM13.5 9.5h2v3h-2z" fill="#fff" opacity=".9" rx="1"/><path d="M10 8a1 1 0 100-2 1 1 0 000 2zM14 8a1 1 0 100-2 1 1 0 000 2z" fill="#0ff" opacity=".8"/><circle cx="10" cy="7" r=".5" fill="#fff"/><circle cx="14" cy="7" r=".5" fill="#fff"/><path d="M3 9h2M19 9h2M12 0v2" stroke="#9B6DFF" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><defs><linearGradient id="brGrad" x1="5" y1="2" x2="19" y2="17"><stop stop-color="#9B6DFF"/><stop offset="1" stop-color="#6D4AFF"/></linearGradient></defs></svg> НейроМозг</button>
     <span id="headerTotal" style="font-size:11px;color:var(--gold2);font-family:var(--fm);font-weight:700;">0 ₽</span>
@@ -785,16 +788,16 @@
 <script src="js/config.js?v=9"></script>
 <script src="js/catalog.js?v=8"></script>
 <script src="js/utils.js?v=8"></script>
-<script src="js/app.js?v=8"></script>
+<script src="js/app.js?v=9"></script>
 <script src="js/calculator.js?v=12"></script>
 <!-- JS: deferred (loaded after DOM, non-blocking) -->
 <script defer src="js/sport-renderers.js?v=8"></script>
 <script defer src="js/planner.js?v=8"></script>
 <script defer src="js/hangar-editor.js?v=8"></script>
-<script defer src="js/render.js?v=9"></script>
+<script defer src="js/render.js?v=10"></script>
 <script defer src="js/financial.js?v=8"></script>
 <script defer src="js/pdf.js?v=8"></script>
-<script defer src="js/ai-wizard.js?v=10"></script>
+<script defer src="js/ai-wizard.js?v=11"></script>
 <script defer src="js/help.js?v=8"></script>
 <script defer src="js/project.js?v=8"></script>
 
