@@ -216,6 +216,9 @@
         <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
           <input type="checkbox" id="lndLighting" checked> Парковое освещение
         </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
+          <input type="checkbox" id="renderLandscape" checked> Сохранить ландшафт местности
+        </label>
       </div>
       <div id="capexPanel" style="border-top:1px solid var(--bd);padding:8px 0;">
         <div class="ph2">💰 CAPEX СВОДКА</div>
@@ -655,7 +658,7 @@
   </div>
   <div class="heBody">
     <div class="heSidebar">
-      <div class="heSideHead" style="display:flex;justify-content:space-between;align-items:center;">ОБЪЕКТЫ <button class="heAutoBtn" onclick="heAutoPlace()" title="Автоматически разместить выбранные объекты">⚡ Авто</button></div>
+      <div class="heSideHead" style="display:flex;justify-content:space-between;align-items:center;">ОБЪЕКТЫ <button class="heAutoBtn" onclick="heAutoPlace()" title="Автоматически разместить выбранные объекты">⚡ Авто</button><button class="heAutoBtn" onclick="heAIAutoPlace()" title="AI-расстановка через Claude" style="margin-left:4px;background:rgba(155,109,255,.15);border:1px solid rgba(155,109,255,.3);color:#9B6DFF">🤖 AI</button></div>
       <div id="hePalette"></div>
     </div>
     <div class="heCanvasWrap">
@@ -832,6 +835,7 @@
     </div>
     <div class="aiWizChat" id="aiWizChat"></div>
     <div class="aiWizInput">
+      <div id="aiPresets" style="display:none;gap:6px;flex-wrap:wrap;padding:4px 8px"></div>
       <textarea id="aiWizInput" rows="5" placeholder="Опишите что хотите построить..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage();}"></textarea>
       <div id="aiImagePreview" style="display:none;padding:6px 8px;flex-wrap:wrap;gap:6px"></div>
       <div class="aiWizBtns">
