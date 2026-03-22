@@ -7,8 +7,8 @@ echo "═══ BUILD START ═══"
 
 # Step 1: Generate keys.js from environment variables
 echo "// Auto-generated at build time — do not edit" > js/keys.js
-echo "const KIE_API_KEY = '${KIE_API_KEY:-}';" >> js/keys.js
-echo "const CLAUDE_API_KEY = '${CLAUDE_API_KEY:-}';" >> js/keys.js
+echo "var KIE_API_KEY = '${KIE_API_KEY:-}';" >> js/keys.js
+echo "var CLAUDE_API_KEY = '${CLAUDE_API_KEY:-}';" >> js/keys.js
 echo "✅ keys.js generated"
 
 # Step 2: Install minification tools
