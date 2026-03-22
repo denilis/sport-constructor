@@ -1,6 +1,7 @@
 [build]
   command = "bash build.sh"
   publish = "."
+  ignore = "exit 0"  # Disable auto-deploy on git push. Deploy manually via Netlify UI or build hook.
 
 # HTML — always revalidate
 [[headers]]
