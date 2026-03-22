@@ -259,6 +259,12 @@ function sendAnalysisToAI(userText) {
       }
     }
 
+    /* Check for cadastral number in response */
+    var cadMatch = text.match(/(\d{2}:\d{2}:\d{5,7}:\d+)/);
+    if (cadMatch) {
+      APP.cadastreNumber = cadMatch[1];
+    }
+
     /* Show clean text */
     var cleanText = text
       .replace(/===APPLY===[\s\S]*?===END===/g, '')
@@ -389,7 +395,12 @@ function applyAnalysisToCalc() {
 
   if (typeof applyAIConfig === 'function') {
     applyAIConfig(ANALYSIS.lastApplyData);
-    addAnalysisMessage('bot', '✅ Данные перенесены в калькулятор! Переключаюсь...');
+    var msg = '✅ Данные перенесены в калькулятор!';
+    if (APP.cadastreNumber) {
+      msg += '\n📐 Кадастровый номер: ' + APP.cadastreNumber + ' (сохранён для планировщика)';
+    }
+    msg += ' Переключаюсь...';
+    addAnalysisMessage('bot', msg);
 
     /* Switch to calculator tab */
     setTimeout(function() {
@@ -403,5 +414,62 @@ function applyAnalysisToCalc() {
     }, 500);
   } else {
     addAnalysisMessage('bot', '⚠️ Функция переноса недоступна.');
+  }
+}
+
+/* ── Voice input for Analysis chat ── */
+
+var analysisVoiceRecog = null;
+var analysisVoiceActive = false;
+
+function toggleAnalysisVoice() {
+  if (analysisVoiceActive) { stopAnalysisVoice(); return; }
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Голосовой ввод не поддерживается в этом браузере. Используйте Chrome.');
+    return;
+  }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  analysisVoiceRecog = new SR();
+  analysisVoiceRecog.lang = 'ru-RU';
+  analysisVoiceRecog.continuous = true;
+  analysisVoiceRecog.interimResults = true;
+  var input = document.getElementById('analysisChatInput');
+  var btn = document.getElementById('analysisVoiceBtn');
+  var base = input.value;
+  analysisVoiceRecog.onstart = function() {
+    analysisVoiceActive = true;
+    btn.style.background = '#f87171';
+    btn.style.color = '#fff';
+    input.placeholder = 'Говорите...';
+  };
+  analysisVoiceRecog.onresult = function(ev) {
+    var interim = '';
+    for (var i = ev.resultIndex; i < ev.results.length; i++) {
+      if (ev.results[i].isFinal) {
+        base += (base ? ' ' : '') + ev.results[i][0].transcript;
+      } else {
+        interim += ev.results[i][0].transcript;
+      }
+    }
+    input.value = base + (interim ? ' ' + interim : '');
+  };
+  analysisVoiceRecog.onerror = function(ev) {
+    if (ev.error !== 'no-speech') stopAnalysisVoice();
+  };
+  analysisVoiceRecog.onend = function() {
+    if (analysisVoiceActive) stopAnalysisVoice();
+  };
+  analysisVoiceRecog.start();
+}
+
+function stopAnalysisVoice() {
+  analysisVoiceActive = false;
+  var btn = document.getElementById('analysisVoiceBtn');
+  if (btn) { btn.style.background = 'var(--bg3)'; btn.style.color = 'var(--tx2)'; }
+  var input = document.getElementById('analysisChatInput');
+  if (input) input.placeholder = 'Дополнительный контекст...';
+  if (analysisVoiceRecog) {
+    try { analysisVoiceRecog.stop(); } catch(e) {}
+    analysisVoiceRecog = null;
   }
 }
