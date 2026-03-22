@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sport Constructor — Задачи</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d1a;
+      --bg2:       #12122a;
+      --bg3:       #1a1a35;
+      --border:    #2a2a4a;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --blue:      #3b82f6;
+      --blue-dim:  #1e3a5f;
+      --green:     #22c55e;
+      --green-dim: #14532d;
+      --amber:     #f59e0b;
+      --amber-dim: #451a03;
+      --red:       #ef4444;
+      --red-dim:   #450a0a;
+      --purple:    #a855f7;
+      --purple-dim:#3b0764;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, #0d0d1a 0%, #1a1a35 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 16px #3b82f640;
+    }
+    .logo-text h1 {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .logo-text p { font-size: 12px; color: var(--muted); }
+
+    .header-meta {
+      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .header-meta strong { color: var(--text); }
+
+    /* ── PROGRESS BAR ── */
+    .progress-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .progress-label {
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .progress-bar-wrap {
+      flex: 1;
+      background: var(--bg3);
+      border-radius: 99px;
+      height: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue), var(--green));
+      border-radius: 99px;
+      transition: width 0.6s cubic-bezier(.4,0,.2,1);
+      box-shadow: 0 0 8px #22c55e60;
+    }
+    .progress-pct {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--green);
+      white-space: nowrap;
+      min-width: 44px;
+      text-align: right;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .main { max-width: 900px; margin: 0 auto; padding: 28px 24px 60px; }
+
+    /* ── FILTER BUTTONS ── */
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 7px 18px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      user-select: none;
+    }
+    .filter-btn:hover { border-color: var(--blue); color: var(--text); }
+    .filter-btn.active {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+      box-shadow: 0 0 12px #3b82f640;
+    }
+    .filter-btn.active-green  { background: var(--green);  border-color: var(--green);  color: #0d0d1a; box-shadow: 0 0 12px #22c55e40; }
+    .filter-btn.active-amber  { background: var(--amber);  border-color: var(--amber);  color: #0d0d1a; box-shadow: 0 0 12px #f59e0b40; }
+    .filter-btn.active-red    { background: var(--red);    border-color: var(--red);    color: #fff;    box-shadow: 0 0 12px #ef444440; }
+    .filter-count {
+      background: rgba(255,255,255,.15);
+      border-radius: 99px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* ── CATEGORY SECTION ── */
+    .category-section { margin-bottom: 20px; }
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px 10px 0 0;
+      cursor: pointer;
+      user-select: none;
+      transition: background .15s;
+    }
+    .category-header:hover { background: var(--bg3); }
+    .category-header.collapsed { border-radius: 10px; }
+    .cat-icon { font-size: 16px; width: 22px; text-align: center; }
+    .cat-title { font-weight: 600; font-size: 14px; flex: 1; }
+    .cat-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 99px;
+    }
+    .cat-badge-done   { background: var(--green-dim); color: var(--green); }
+    .cat-badge-wip    { background: var(--amber-dim); color: var(--amber); }
+    .cat-badge-bug    { background: var(--red-dim);   color: var(--red);   }
+    .cat-chevron { color: var(--muted); font-size: 12px; transition: transform .25s; }
+    .cat-chevron.open { transform: rotate(180deg); }
+
+    .task-list {
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      overflow: hidden;
+    }
+    .task-list.collapsed { display: none; }
+
+    /* ── TASK ITEM ── */
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      transition: background .15s;
+      cursor: pointer;
+      position: relative;
+    }
+    .task-item:first-child { border-top: none; }
+    .task-item:hover { background: var(--bg3); }
+    .task-item.done { opacity: .6; }
+    .task-item.hidden { display: none; }
+
+    /* Checkbox */
+    .task-check {
+      width: 20px; height: 20px;
+      border-radius: 5px;
+      border: 2px solid var(--border);
+      background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      transition: all .2s;
+      cursor: pointer;
+    }
+    .task-check:hover { border-color: var(--blue); }
+    .task-item.done .task-check {
+      background: var(--green);
+      border-color: var(--green);
+    }
+    .task-check i { display: none; color: #fff; font-size: 11px; }
+    .task-item.done .task-check i { display: block; }
+
+    /* Priority dot */
+    .priority-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 7px;
+    }
+    .priority-high   { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+    .priority-medium { background: var(--amber);  box-shadow: 0 0 6px var(--amber); }
+    .priority-low    { background: var(--muted);  }
+
+    /* Task text */
+    .task-text {
+      flex: 1;
+      font-size: 14px;
+      line-height: 1.5;
+      transition: all .2s;
+    }
+    .task-item.done .task-text {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
+    /* Category badge on task */
+    .task-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 99px;
+      white-space: nowrap;
+      align-self: flex-start;
+      margin-top: 3px;
+    }
+    .badge-ai     { background: #1e1b4b; color: #818cf8; }
+    .badge-ux     { background: #0c4a6e; color: #38bdf8; }
+    .badge-db     { background: #134e4a; color: #2dd4bf; }
+    .badge-export { background: #3b0764; color: #c084fc; }
+    .badge-map    { background: #14532d; color: #4ade80; }
+    .badge-model  { background: #451a03; color: #fb923c; }
+    .badge-infra  { background: #1e293b; color: #94a3b8; }
+    .badge-bug    { background: var(--red-dim); color: var(--red); }
+    .badge-planner{ background: #1c1917; color: #d6d3d1; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--muted);
+      display: none;
+    }
+    .empty-state i { font-size: 36px; margin-bottom: 12px; display: block; }
+
+    /* ── FOOTER ── */
+    .footer-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      z-index: 100;
+    }
+    .footer-bar span strong { color: var(--text); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .category-section { animation: fadeIn .3s ease both; }
+    .category-section:nth-child(1) { animation-delay: .05s; }
+    .category-section:nth-child(2) { animation-delay: .10s; }
+    .category-section:nth-child(3) { animation-delay: .15s; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo">
+      <div class="logo-icon"><i class="fa-solid fa-hockey-puck"></i></div>
+      <div class="logo-text">
+        <h1>Sport Constructor Pro</h1>
+        <p>Трекер задач проекта</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div>Обновлено: <strong id="lastUpdated">—</strong></div>
+      <div>Версия: <strong>2026.03</strong></div>
+    </div>
+  </div>
+  <div class="progress-section">
+    <div class="progress-label" id="progressLabel">0 из 0 выполнено</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="progress-pct" id="progressPct">0%</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="filters" id="filters">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">
+      <i class="fa-solid fa-list"></i> Все <span class="filter-count" id="cnt-all">0</span>
+    </button>
+    <button class="filter-btn" data-filter="done" onclick="setFilter('done',this)">
+      <i class="fa-solid fa-circle-check"></i> Выполнено <span class="filter-count" id="cnt-done">0</span>
+    </button>
+    <button class="filter-btn" data-filter="wip" onclick="setFilter('wip',this)">
+      <i class="fa-solid fa-hammer"></i> В работе <span class="filter-count" id="cnt-wip">0</span>
+    </button>
+    <button class="filter-btn" data-filter="bug" onclick="setFilter('bug',this)">
+      <i class="fa-solid fa-bug"></i> Баги <span class="filter-count" id="cnt-bug">0</span>
+    </button>
+  </div>
+
+  <div id="taskContainer"></div>
+  <div class="empty-state" id="emptyState">
+    <i class="fa-solid fa-filter-circle-xmark"></i>
+    Нет задач по выбранному фильтру
+  </div>
+
+</div>
+
+<div class="footer-bar">
+  <span>Sport Constructor Pro © 2026</span>
+  <span>
+    <strong id="footerDone">0</strong> выполнено ·
+    <strong id="footerWip">0</strong> в работе ·
+    <strong id="footerBug">0</strong> багов
+  </span>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   TASK DATA
+══════════════════════════════════════════════ */
+const TASKS = [
+  /* ── ВЫПОЛНЕНО ── */
+  { id:'t01', status:'done', priority:'high',   badge:'ai',     text:'AI промты: 3 режима НейроМозга (конфигуратор, клиент, фото)' },
+  { id:'t02', status:'done', priority:'high',   badge:'ai',     text:'Промты рендера: 6 ракурсов + зонирование + экспертиза + лёд' },
+  { id:'t03', status:'done', priority:'medium', badge:'ux',     text:'Светлая тема + переключатель' },
+  { id:'t04', status:'done', priority:'low',    badge:'bug',    text:'Баг config.js (const/var) — исправлен' },
+  { id:'t05', status:'done', priority:'high',   badge:'model',  text:'АБК авто-расчёт по нормам СП 31-112' },
+  { id:'t06', status:'done', priority:'high',   badge:'infra',  text:'API-ключ через Netlify env vars' },
+  { id:'t07', status:'done', priority:'medium', badge:'export', text:'PDF/DOCX загрузка в исследованиях' },
+  { id:'t08', status:'done', priority:'high',   badge:'db',     text:'Supabase: 7 таблиц + облачное сохранение' },
+  { id:'t09', status:'done', priority:'high',   badge:'model',  text:'Контейнерная модель данных (projectModel)' },
+  { id:'t10', status:'done', priority:'high',   badge:'ux',     text:'Вкладка "00 Анализ проекта клиента"' },
+  { id:'t11', status:'done', priority:'medium', badge:'model',  text:'Котельная вне АБК' },
+  { id:'t12', status:'done', priority:'medium', badge:'model',  text:'Кафе: кухня + зал' },
+  { id:'t13', status:'done', priority:'high',   badge:'model',  text:'Лёд: режимы загрузки' },
+  { id:'t14', status:'done', priority:'medium', badge:'model',  text:'АБК привязка к ангару' },
+  { id:'t15', status:'done', priority:'low',    badge:'infra',  text:'Автодеплой → pre-push hook → отключён (ignore=exit 0)' },
+  { id:'t16', status:'done', priority:'high',   badge:'model',  text:'ICE_ARENA_MODEL из реальных данных (190K транзакций)' },
+  { id:'t17', status:'done', priority:'high',   badge:'db',     text:'Сессия: автосохранение в localStorage' },
+  { id:'t18', status:'done', priority:'high',   badge:'export', text:'DOCX экспорт (Claude анализ + полный отчёт)' },
+  { id:'t19', status:'done', priority:'medium', badge:'model',  text:'Магазин спортивных товаров (rm_shop)' },
+  { id:'t20', status:'done', priority:'medium', badge:'planner',text:'ABK авторасстановка: полные прямоугольники вместо 1×1' },
+  { id:'t21', status:'done', priority:'high',   badge:'planner',text:'Планировщик: 3-колонки (сворачиваемые панели)' },
+  { id:'t22', status:'done', priority:'high',   badge:'ai',     text:'Динамические промты рендера (читают реальный состав проекта)' },
+  { id:'t23', status:'done', priority:'low',    badge:'bug',    text:'Баг calculator.js (конфликт кавычек) — исправлен' },
+  { id:'t24', status:'done', priority:'medium', badge:'planner',text:'Кнопки разворачивания панелей планировщика — исправлены' },
+
+  /* ── В РАБОТЕ / ЗАПЛАНИРОВАНО ── */
+  { id:'t25', status:'wip', priority:'high',   badge:'ai',     text:'Страница настроек промтов (редактирование AI промтов в UI)' },
+  { id:'t26', status:'wip', priority:'high',   badge:'map',    text:'Загрузка карты по кадастровому номеру (автоматическая)' },
+  { id:'t27', status:'wip', priority:'high',   badge:'map',    text:'AI → планировщик: кадастр из документов → карта' },
+  { id:'t28', status:'wip', priority:'medium', badge:'planner',text:'Кнопка "N из M" в палитре ангара' },
+  { id:'t29', status:'wip', priority:'high',   badge:'planner',text:'Авторасстановка: только выбранные объекты' },
+  { id:'t30', status:'wip', priority:'high',   badge:'planner',text:'Двусторонняя связь Калькулятор ↔ Планировщик' },
+  { id:'t31', status:'wip', priority:'medium', badge:'planner',text:'Автоматическое наполнение помещений (шкафчики, мебель)' },
+  { id:'t32', status:'wip', priority:'low',    badge:'ai',     text:'Автосоздание зданий из подсказок' },
+  { id:'t33', status:'wip', priority:'high',   badge:'model',  text:'Финмодель: передача из контейнерной модели в OPEX/выручку' },
+  { id:'t34', status:'wip', priority:'medium', badge:'ai',     text:'Голосовой ввод в чате Анализа' },
+
+  /* ── БАГИ ── */
+  { id:'t35', status:'bug', priority:'high',   badge:'bug',    text:'Сервер работает с C: диска, редактирование через H: — расхождение путей' },
+  { id:'t36', status:'bug', priority:'medium', badge:'bug',    text:'Обучающий текст планировщика — сдвиг при нулевом размере canvas (частично исправлен)' },
+];
+
+/* ══════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════ */
+const STORAGE_KEY = 'sc_tasks';
+let state = {};      // { taskId: true/false } — overrides for done/not-done
+let currentFilter = 'all';
+
+function loadState() {
+  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  catch { state = {}; }
+}
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function isChecked(task) {
+  if (task.id in state) return state[task.id];
+  return task.status === 'done';
+}
+
+/* ══════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════ */
+const SECTIONS = [
+  { key:'done', label:'Выполнено', icon:'fa-circle-check', badgeClass:'cat-badge-done',
+    headerColor:'#22c55e20', iconColor:'#22c55e' },
+  { key:'wip',  label:'В работе / Запланировано', icon:'fa-hammer', badgeClass:'cat-badge-wip',
+    headerColor:'#f59e0b20', iconColor:'#f59e0b' },
+  { key:'bug',  label:'Баги', icon:'fa-bug', badgeClass:'cat-badge-bug',
+    headerColor:'#ef444420', iconColor:'#ef4444' },
+];
+
+const PRIORITY_CLASS = { high:'priority-high', medium:'priority-medium', low:'priority-low' };
+const PRIORITY_TITLE = { high:'Высокий приоритет', medium:'Средний приоритет', low:'Низкий приоритет' };
+
+function getBadgeLabel(badge) {
+  const map = {
+    ai:'AI', ux:'UX', db:'БД', export:'Экспорт', map:'Карта',
+    model:'Модель', infra:'Инфра', bug:'Баг', planner:'Планировщик',
+  };
+  return map[badge] || badge;
+}
+
+function render() {
+  const container = document.getElementById('taskContainer');
+  container.innerHTML = '';
+
+  // Collapse states from DOM (preserve between renders)
+  const collapseState = {};
+  document.querySelectorAll('.category-section').forEach(sec => {
+    const key = sec.dataset.skey;
+    const list = sec.querySelector('.task-list');
+    if (list) collapseState[key] = list.classList.contains('collapsed');
+  });
+
+  let totalVisible = 0;
+
+  SECTIONS.forEach(sec => {
+    let tasks = TASKS.filter(t => t.status === sec.key);
+
+    // Apply filter
+    if (currentFilter !== 'all' && currentFilter !== sec.key) {
+      // section hidden
+      tasks = [];
+    }
+
+    if (currentFilter === 'done') {
+      // show tasks that are checked, regardless of original status
+      tasks = TASKS.filter(t => isChecked(t));
+    }
+    if (currentFilter === 'wip') {
+      tasks = TASKS.filter(t => t.status === 'wip' && !isChecked(t));
+    }
+    if (currentFilter === 'bug') {
+      tasks = TASKS.filter(t => t.status === 'bug');
+    }
+    if (currentFilter === 'all') {
+      tasks = TASKS.filter(t => t.status === sec.key);
+    }
+
+    if (tasks.length === 0) return;
+
+    totalVisible += tasks.length;
+
+    const isCollapsed = collapseState[sec.key] !== undefined ? collapseState[sec.key] : false;
+
+    const section = document.createElement('div');
+    section.className = 'category-section';
+    section.dataset.skey = sec.key;
+
+    const header = document.createElement('div');
+    header.className = 'category-header' + (isCollapsed ? ' collapsed' : '');
+    header.style.borderLeft = `3px solid ${sec.iconColor}`;
+    header.innerHTML = `
+      <span class="cat-icon" style="color:${sec.iconColor}"><i class="fa-solid ${sec.icon}"></i></span>
+      <span class="cat-title">${sec.label}</span>
+      <span class="cat-badge ${sec.badgeClass}">${tasks.length}</span>
+      <i class="fa-solid fa-chevron-down cat-chevron ${isCollapsed ? '' : 'open'}"></i>
+    `;
+    header.onclick = () => toggleSection(sec.key);
+
+    const list = document.createElement('div');
+    list.className = 'task-list' + (isCollapsed ? ' collapsed' : '');
+    list.id = 'list-' + sec.key;
+
+    tasks.forEach(task => {
+      const checked = isChecked(task);
+      const item = document.createElement('div');
+      item.className = 'task-item' + (checked ? ' done' : '');
+      item.dataset.tid = task.id;
+      item.dataset.status = task.status;
+      item.title = 'Нажмите, чтобы ' + (checked ? 'снять отметку' : 'отметить выполненным');
+      item.innerHTML = `
+        <div class="task-check" onclick="toggleTask('${task.id}',event)">
+          <i class="fa-solid fa-check"></i>
+        </div>
+        <div class="priority-dot ${PRIORITY_CLASS[task.priority]}" title="${PRIORITY_TITLE[task.priority]}"></div>
+        <div class="task-text">${task.text}</div>
+        <span class="task-badge badge-${task.badge}">${getBadgeLabel(task.badge)}</span>
+      `;
+      item.onclick = (e) => {
+        if (!e.target.closest('.task-check')) toggleTask(task.id, e);
+      };
+      list.appendChild(item);
+    });
+
+    section.appendChild(header);
+    section.appendChild(list);
+    container.appendChild(section);
+  });
+
+  document.getElementById('emptyState').style.display = totalVisible === 0 ? 'block' : 'none';
+
+  updateCounts();
+  updateProgress();
+}
+
+function toggleSection(key) {
+  const list = document.getElementById('list-' + key);
+  const header = list?.previousElementSibling;
+  if (!list) return;
+  const collapsed = list.classList.toggle('collapsed');
+  if (header) {
+    header.classList.toggle('collapsed', collapsed);
+    const chevron = header.querySelector('.cat-chevron');
+    if (chevron) chevron.classList.toggle('open', !collapsed);
+  }
+}
+
+/* ══════════════════════════════════════════════
+   TOGGLE TASK
+══════════════════════════════════════════════ */
+function toggleTask(id, e) {
+  e.stopPropagation();
+  const task = TASKS.find(t => t.id === id);
+  if (!task) return;
+  const current = isChecked(task);
+  state[id] = !current;
+  saveState();
+  updateLastUpdated();
+  render();
+}
+
+/* ══════════════════════════════════════════════
+   FILTER
+══════════════════════════════════════════════ */
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active','active-green','active-amber','active-red');
+  });
+  const colorMap = { all:'active', done:'active-green', wip:'active-amber', bug:'active-red' };
+  btn.classList.add(colorMap[filter] || 'active');
+  render();
+}
+
+/* ══════════════════════════════════════════════
+   COUNTS & PROGRESS
+══════════════════════════════════════════════ */
+function updateCounts() {
+  const all   = TASKS.length;
+  const done  = TASKS.filter(t => isChecked(t)).length;
+  const wip   = TASKS.filter(t => t.status === 'wip' && !isChecked(t)).length;
+  const bug   = TASKS.filter(t => t.status === 'bug').length;
+
+  document.getElementById('cnt-all').textContent  = all;
+  document.getElementById('cnt-done').textContent = done;
+  document.getElementById('cnt-wip').textContent  = wip;
+  document.getElementById('cnt-bug').textContent  = bug;
+
+  document.getElementById('footerDone').textContent = done;
+  document.getElementById('footerWip').textContent  = wip;
+  document.getElementById('footerBug').textContent  = bug;
+}
+
+function updateProgress() {
+  const total = TASKS.length;
+  const done  = TASKS.filter(t => isChecked(t)).length;
+  const pct   = total ? Math.round((done / total) * 100) : 0;
+
+  document.getElementById('progressLabel').textContent = `${done} из ${total} выполнено`;
+  document.getElementById('progressFill').style.width  = pct + '%';
+  document.getElementById('progressPct').textContent   = pct + '%';
+}
+
+/* ══════════════════════════════════════════════
+   LAST UPDATED
+══════════════════════════════════════════════ */
+function updateLastUpdated() {
+  const now = new Date();
+  const fmt = now.toLocaleString('ru-RU', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+  localStorage.setItem('sc_tasks_updated', fmt);
+  document.getElementById('lastUpdated').textContent = fmt;
+}
+function loadLastUpdated() {
+  const stored = localStorage.getItem('sc_tasks_updated');
+  document.getElementById('lastUpdated').textContent = stored || '22.03.2026';
+}
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+loadState();
+loadLastUpdated();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sport-constructor",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3333", "--no-cache", "."],
+      "port": 3333
+    }
+  ]
+}

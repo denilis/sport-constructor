@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/calculator.css?v=3">
 <!-- Non-critical CSS: deferred -->
-<link rel="stylesheet" href="css/planner.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/planner.css?v=3" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/render.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/hangar-editor.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/modals.css" media="print" onload="this.media='all'">
@@ -47,6 +47,7 @@
   </div>
   <div class="appHeaderRight">
     <button class="themeToggle" onclick="toggleTheme()" title="Переключить тему" id="themeBtn">🌙</button>
+    <button class="helpBtn" onclick="openPromptsSettings()" title="Настройки промтов" style="margin-right:4px;">⚙</button>
     <button class="helpBtn" onclick="openHelp()" title="Инструкция">?</button>
     <button class="aiWizBtn" onclick="openAIWizard()"><svg class="aiWizIco" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7z" fill="url(#brGrad)"/><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z" fill="#9B6DFF"/><path d="M8.5 9.5h2v3h-2zM13.5 9.5h2v3h-2z" fill="#fff" opacity=".9" rx="1"/><path d="M10 8a1 1 0 100-2 1 1 0 000 2zM14 8a1 1 0 100-2 1 1 0 000 2z" fill="#0ff" opacity=".8"/><circle cx="10" cy="7" r=".5" fill="#fff"/><circle cx="14" cy="7" r=".5" fill="#fff"/><path d="M3 9h2M19 9h2M12 0v2" stroke="#9B6DFF" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><defs><linearGradient id="brGrad" x1="5" y1="2" x2="19" y2="17"><stop stop-color="#9B6DFF"/><stop offset="1" stop-color="#6D4AFF"/></linearGradient></defs></svg> НейроМозг</button>
     <span id="headerTotal" style="font-size:11px;color:var(--gold2);font-family:var(--fm);font-weight:700;">0 ₽</span>
@@ -194,41 +195,57 @@
       <div class="ph">ОБЪЕКТЫ</div>
       <div id="libItems"></div>
     </div>
+    <div id="planLeftPanel">
+      <div class="panelHeader">
+        <span class="panelTitle">СВОЙСТВА</span>
+        <button class="panelToggle" onclick="togglePlanPanel('left')" title="Свернуть панель">◀</button>
+      </div>
+      <div class="panelContent">
+        <div id="planProps">
+          <div id="propsBody"><div style="color:var(--tx4);font-size:10px;padding:8px 0;">Выберите объект</div></div>
+        </div>
+        <div id="landscapePanel" style="border-top:1px solid var(--bd);padding:8px;">
+          <div class="ph2">🌿 ЛАНДШАФТ</div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
+            <input type="checkbox" id="lndKeepTrees" checked> Сохранить существующие деревья
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
+            <input type="checkbox" id="lndDesign" checked> Ландшафтный дизайн (дорожки, газоны)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
+            <input type="checkbox" id="lndWater"> Водные объекты (фонтаны, пруды)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
+            <input type="checkbox" id="lndLighting" checked> Парковое освещение
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
+            <input type="checkbox" id="renderLandscape" checked> Сохранить ландшафт местности
+          </label>
+        </div>
+      </div>
+    </div>
     <div id="planCanvas">
       <canvas id="cv"></canvas>
       <div id="crosshair"></div>
       <div id="planHint"></div>
     </div>
-    <div id="planProps">
-      <div class="ph">СВОЙСТВА</div>
-      <div id="propsBody"><div style="color:var(--tx4);font-size:10px;padding:8px 0;">Выберите объект</div></div>
-      <div id="landscapePanel" style="border-top:1px solid var(--bd);padding:8px 0;">
-        <div class="ph2">🌿 ЛАНДШАФТ</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
-          <input type="checkbox" id="lndKeepTrees" checked> Сохранить существующие деревья
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
-          <input type="checkbox" id="lndDesign" checked> Ландшафтный дизайн (дорожки, газоны)
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
-          <input type="checkbox" id="lndWater"> Водные объекты (фонтаны, пруды)
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
-          <input type="checkbox" id="lndLighting" checked> Парковое освещение
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);padding:2px 0;cursor:pointer;">
-          <input type="checkbox" id="renderLandscape" checked> Сохранить ландшафт местности
-        </label>
+    <div id="planRightPanel">
+      <div class="panelHeader">
+        <button class="panelToggle" onclick="togglePlanPanel('right')" title="Свернуть панель">▶</button>
+        <span class="panelTitle">АНАЛИТИКА</span>
       </div>
-      <div id="capexPanel" style="border-top:1px solid var(--bd);padding:8px 0;">
-        <div class="ph2">💰 CAPEX СВОДКА</div>
-        <div id="capexBody" style="font-size:9px;color:var(--tx3);max-height:200px;overflow-y:auto;"></div>
-      </div>
-      <div id="aiPanel">
-        <div class="ph2">CLAUDE АНАЛИЗ</div>
-        <textarea id="aiOut" readonly placeholder="Анализ зонирования…"></textarea>
-        <div class="aiRow">
-          <button onclick="runAI()" style="width:100%">Анализ</button>
+      <div class="panelContent">
+        <div id="capexPanel" style="padding:8px;border-bottom:1px solid var(--bd);">
+          <div class="ph2">💰 CAPEX СВОДКА</div>
+          <div id="capexBody" style="font-size:9px;color:var(--tx3);max-height:200px;overflow-y:auto;"></div>
+        </div>
+        <div id="aiPanel">
+          <div class="ph2" style="color:var(--cyan);">CLAUDE АНАЛИЗ</div>
+          <textarea id="aiOut" readonly placeholder="Анализ зонирования и девелоперская экспертиза..."></textarea>
+          <div class="aiRow">
+            <button onclick="runAI()" class="aiBtnZone">Зонирование</button>
+            <button onclick="runRenderAI()" class="aiBtnExpert">Экспертиза</button>
+          </div>
         </div>
       </div>
     </div>
@@ -854,7 +871,7 @@
 <script src="js/keys.js?v=8"></script>
 <script src="js/config.js?v=11"></script>
 <script src="js/catalog.js?v=8"></script>
-<script src="js/utils.js?v=8"></script>
+<script src="js/utils.js?v=9"></script>
 <script src="js/app.js?v=10"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
@@ -862,14 +879,15 @@
 <script src="js/calculator.js?v=13"></script>
 <!-- JS: deferred (loaded after DOM, non-blocking) -->
 <script defer src="js/sport-renderers.js?v=8"></script>
-<script defer src="js/planner.js?v=8"></script>
+<script defer src="js/planner.js?v=12"></script>
 <script defer src="js/hangar-editor.js?v=8"></script>
-<script defer src="js/render.js?v=10"></script>
+<script defer src="js/render.js?v=11"></script>
 <script defer src="js/financial.js?v=9"></script>
 <script defer src="js/pdf.js?v=8"></script>
-<script defer src="js/ai-wizard.js?v=11"></script>
+<script defer src="js/ai-wizard.js?v=12"></script>
 <script defer src="js/analysis.js?v=1"></script>
 <script defer src="js/help.js?v=8"></script>
+<script defer src="js/prompts-settings.js?v=1"></script>
 <script defer src="js/project.js?v=8"></script>
 <script defer src="js/supabase.js?v=2"></script>
 
